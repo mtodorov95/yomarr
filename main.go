@@ -5,29 +5,42 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/mtodorov95/yomarr/internal/api"
+	"github.com/mtodorov95/yomarr/internal/db"
 )
 
 //go:embed all:web/dist
 var webAssets embed.FS
 
 func main() {
+	// DB
+	path := os.Getenv("DB_PATH")
+	if path == "" {
+		path = "/data/yomarr.db"
+	}
+	db.Init(path)
+
+	// Server
 	mux := http.NewServeMux()
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)
+
+	seriesHandler := &api.SeriesHandler{Store: &db.SQLiteSeriesStore{}}
+	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)
 
 	// Static
 	dist, err := fs.Sub(webAssets, "web/dist")
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	fileServer := http.FileServer(http.FS(dist))
 	mux.Handle("/", fileServer)
 
 	log.Println("Server starting on :8080")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
-	} 
+	}
 }

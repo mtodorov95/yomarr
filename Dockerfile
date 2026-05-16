@@ -19,5 +19,8 @@ FROM alpine:latest
 WORKDIR /root/
 COPY --from=builder /app/yomarr .
 
+RUN mkdir -p /data
+ENV DB_PATH=/data/yomarr.db
+
 EXPOSE 8080
 CMD ["./yomarr"]
