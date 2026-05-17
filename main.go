@@ -30,6 +30,9 @@ func main() {
 	seriesHandler := &api.SeriesHandler{Store: &db.SQLiteSeriesStore{}}
 	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)
 
+	chapterHandler := &api.ChapterHandler{Store: &db.SQLiteChapterStore{}}
+	mux.HandleFunc("/api/chapters", chapterHandler.HandleChapters)
+
 	// Static
 	dist, err := fs.Sub(webAssets, "web/dist")
 	if err != nil {
