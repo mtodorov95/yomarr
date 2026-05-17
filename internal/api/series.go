@@ -11,30 +11,30 @@ import (
 )
 
 type SeriesHandler struct {
-	Store db.SeriesStore
+	Store    db.SeriesStore
 	Metadata metadata.Provider
 }
 
 func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-		case http.MethodGet:
-			// Search
-			if query := r.URL.Query().Get("search"); query != "" {
-				h.searchMetadata(w, query)
-				return
-			}
-			// By id
-			idStr := r.URL.Query().Get("id")
-			if idStr != "" {
-				h.getById(w, idStr)
-				return
-			}
-			// All
-			h.getAll(w)
-		case http.MethodPost:
-			h.create(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	case http.MethodGet:
+		// Search
+		if query := r.URL.Query().Get("search"); query != "" {
+			h.searchMetadata(w, query)
+			return
+		}
+		// By id
+		idStr := r.URL.Query().Get("id")
+		if idStr != "" {
+			h.getById(w, idStr)
+			return
+		}
+		// All
+		h.getAll(w)
+	case http.MethodPost:
+		h.create(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -62,11 +62,34 @@ func (h *SeriesHandler) getById(w http.ResponseWriter, idStr string) {
 }
 
 func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
-	var s models.Series
-	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+	var req struct {
+		AnilistID string `json:"anilist_id"`
+		Title     string `json:"title"`
+		Status    string `json:"status"`
+		Path      string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	var s models.Series
+	if req.AnilistID != "" {
+		extSeries, err := h.Metadata.GetDetails(req.AnilistID)
+		if err != nil {
+			http.Error(w, "Metadata fetch fail: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		s = *extSeries
+		s.Path = req.Path
+	} else {
+		s = models.Series{
+			Title:  req.Title,
+			Status: req.Status,
+			Path:   req.Path,
+		}
+	}
+
 	if err := h.Store.Insert(&s); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
