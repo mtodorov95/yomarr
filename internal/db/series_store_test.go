@@ -15,8 +15,8 @@ func TestSeriesStore(t *testing.T) {
 	t.Run("InsertAndGet", func(t *testing.T) {
 		s := &models.Series{
 			Title: "Test Manga",
-			AnilistID: "231",
-			MangadexID: "abc",
+			AnilistID: ToPtr("231"),
+			MangadexID: ToPtr("abc"),
 			Path: "/test/path",
 			Status: "Monitored",
 		}

@@ -1,14 +1,16 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 type Series struct {
-	ID         int64     `json:"id"`
-	AnilistID  string    `json:"anilist_id"`
-	MangadexID string    `json:"mangadex_id"`
-	Title      string    `json:"title"`
-	Path       string    `json:"path"`
-	Status     string    `json:"status"`
+	ID         int64   `json:"id"`
+	AnilistID  *string `json:"anilist_id"`
+	MangadexID *string `json:"mangadex_id"`
+	Title      string  `json:"title"`
+	Path       string  `json:"path"`
+	Status     string  `json:"status"`
 }
 
 type Chapters struct {

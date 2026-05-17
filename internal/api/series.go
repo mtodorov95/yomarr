@@ -63,10 +63,11 @@ func (h *SeriesHandler) getById(w http.ResponseWriter, idStr string) {
 
 func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		AnilistID string `json:"anilist_id"`
-		Title     string `json:"title"`
-		Status    string `json:"status"`
-		Path      string `json:"path"`
+		AnilistID  string `json:"anilist_id"`
+		MangadexId string `json:"mangadex_id"`
+		Title      string `json:"title"`
+		Status     string `json:"status"`
+		Path       string `json:"path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -84,9 +85,11 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		s.Path = req.Path
 	} else {
 		s = models.Series{
-			Title:  req.Title,
-			Status: req.Status,
-			Path:   req.Path,
+			Title:      req.Title,
+			Status:     req.Status,
+			Path:       req.Path,
+			MangadexID: db.ToPtr(req.MangadexId),
+			AnilistID:  db.ToPtr(req.AnilistID),
 		}
 	}
 

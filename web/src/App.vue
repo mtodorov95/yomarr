@@ -2,7 +2,10 @@
 import { ref, onMounted } from 'vue'
 import type { Series } from './types'
 import SearchSeries from './components/SearchSeries.vue'
+import Dashboard from './components/Dashboard.vue'
 const status = ref('loading...')
+
+const view = ref<'dashboard' | 'search'>('dashboard')
 
 onMounted(async () => {
     try {
@@ -14,7 +17,8 @@ onMounted(async () => {
         status.value = 'error'
     }
 })
-async function importSeries(item: Series) {
+
+async function handleImport(item: Series) {
     try {
         const res = await fetch('/api/series', {
             method: 'POST',
@@ -48,7 +52,17 @@ async function importSeries(item: Series) {
                 </span>
             </p>
         </div>
-        
-        <SearchSeries @import="importSeries" />
+
+        <div class="flex gap-4 mb-8">
+            <button @click="view = 'dashboard'"
+                :class="view === 'dashboard' ? 'text-blue-400 border-b-2 border-blue-400' : ''"
+                class="pb-1 font-bold">Library</button>
+            <button @click="view = 'search'"
+                :class="view === 'search' ? 'text-blue-400 border-b-2 border-blue-400' : ''" class="pb-1 font-bold">Add
+                New</button>
+        </div>
+
+        <Dashboard v-if="view == 'dashboard'" />
+        <SearchSeries v-else @import="handleImport" />
     </div>
 </template>

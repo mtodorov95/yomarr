@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
@@ -80,7 +81,7 @@ func (p *AnilistProvider) Search(queryStr string) ([]models.Series, error) {
 			title = m.Title.Romaji
 		}
 		results = append(results, models.Series{
-			AnilistID: fmt.Sprintf("%d", m.ID),
+			AnilistID: db.ToPtr(fmt.Sprintf("%d", m.ID)),
 			Title:     title,
 			Status:    m.Status,
 		})
@@ -130,7 +131,7 @@ func (p *AnilistProvider) GetDetails(id string) (*models.Series, error) {
 	}
 
 	return &models.Series{
-		AnilistID: fmt.Sprintf("%d", data.Data.Media.ID),
+		AnilistID: db.ToPtr(fmt.Sprintf("%d", data.Data.Media.ID)),
 		Title:     title,
 		Status:    data.Data.Media.Status,
 	}, nil

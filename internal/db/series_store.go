@@ -6,11 +6,11 @@ import (
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
-func nullIfEmpty(s string) any {
+func ToPtr(s string) *string {
 	if s == "" {
 		return nil
 	}
-	return s
+	return &s
 }
 
 type SeriesStore interface {
@@ -56,7 +56,7 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 	res, err := DB.Exec(
 		"INSERT INTO series (anilist_id, mangadex_id, title, path, status) VALUES (?,?,?,?,?)",
-		nullIfEmpty(s.AnilistID), nullIfEmpty(s.MangadexID), s.Title, s.Path, s.Status,
+		s.AnilistID, s.MangadexID, s.Title, s.Path, s.Status,
 	)
 	if err != nil {
 		return err
