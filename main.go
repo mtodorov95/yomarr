@@ -33,6 +33,9 @@ func main() {
 	chapterHandler := &api.ChapterHandler{Store: &db.SQLiteChapterStore{}}
 	mux.HandleFunc("/api/chapters", chapterHandler.HandleChapters)
 
+	indexerHandler := &api.IndexerHandler{Store: &db.SQLiteIndexerStore{}}
+	mux.HandleFunc("/api/indexers", indexerHandler.HandleIndexers)
+
 	// Static
 	dist, err := fs.Sub(webAssets, "web/dist")
 	if err != nil {
