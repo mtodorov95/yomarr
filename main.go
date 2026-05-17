@@ -9,6 +9,7 @@ import (
 
 	"github.com/mtodorov95/yomarr/internal/api"
 	"github.com/mtodorov95/yomarr/internal/db"
+	"github.com/mtodorov95/yomarr/internal/metadata"
 )
 
 //go:embed all:web/dist
@@ -24,10 +25,16 @@ func main() {
 
 	// Server
 	mux := http.NewServeMux()
+	client := &http.Client{}
+	anilist := &metadata.AnilistProvider{Client: client}
+
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)
 
-	seriesHandler := &api.SeriesHandler{Store: &db.SQLiteSeriesStore{}}
+	seriesHandler := &api.SeriesHandler{
+		Store: &db.SQLiteSeriesStore{},
+		Metadata: anilist,
+	}
 	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)
 
 	chapterHandler := &api.ChapterHandler{Store: &db.SQLiteChapterStore{}}
