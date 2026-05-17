@@ -16,7 +16,7 @@ func Init(path string) {
 	}
 
 	// WAL for concurrency
-	_, err = DB.Exec("PRAGMA jornal_mode=WAL;")
+	_, err = DB.Exec("PRAGMA journal_mode=WAL;")
 	if err != nil {
 		log.Fatal(err)
 	}
