@@ -12,6 +12,7 @@ defineEmits<{
 
 const chapters = ref<Chapter[]>([])
 const loading = ref(true)
+const searching = ref(false)
 
 async function fetchChapters() {
     loading.value = true
@@ -26,22 +27,49 @@ async function fetchChapters() {
     }
 }
 
+async function searchMissingChapters() {
+  try {
+    const res = await fetch(`/api/series/search-missing?series_id=${props.series.id}`, {
+      method: 'POST'
+    })
+    if (!res.ok) throw new Error('Search request failed')
+    alert('Search started in background')
+  } catch (e) {
+    console.error(e)
+    alert('Search trigger failed')
+  }
+}
+
 onMounted(fetchChapters)
 </script>
 
 <template>
     <div class="w-full max-w-4xl animate-fade-in">
-        <div class="flex items-center gap-4 mb-6">
-            <button @click="$emit('back')"
-                class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
-                <span>←</span> Back to Library
-            </button>
+        <div class="flex items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-4">
+                <button @click="$emit('back')"
+                    class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                    <span>←</span> Back to Library
+                </button>
+                <div>
+                    <h2 class="text-3xl font-black text-blue-400 tracking-tight">{{ series.title }}</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        Storage Path: <code class="text-slate-300 bg-black/40 px-1.5 py-0.5 rounded font-mono">{{
+                            series.path }}</code>
+                    </p>
+                </div>
+            </div>
+
             <div>
-                <h2 class="text-3xl font-black text-blue-400 tracking-tight">{{ series.title }}</h2>
-                <p class="text-xs text-slate-400 mt-0.5">
-                    Storage Path: <code class="text-slate-300 bg-black/40 px-1.5 py-0.5 rounded font-mono">{{
-                        series.path }}</code>
-                </p>
+                <button 
+                    @click="searchMissingChapters()"
+                    :disabled="searching"
+                    class="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed border border-blue-500/30 px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 text-white shadow-lg shadow-blue-500/10"
+                >
+                    <span v-if="searching" class="animate-spin text-xs">⏳</span>
+                    <span v-else>🔍</span>
+                    {{ searching ? 'Searching Nyaa...' : 'Search Missing' }}
+                </button>
             </div>
         </div>
 

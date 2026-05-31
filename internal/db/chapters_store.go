@@ -5,6 +5,7 @@ import "github.com/mtodorov95/yomarr/internal/models"
 type ChapterStore interface {
 	GetBySeriesId(seriesId int64) ([]models.Chapters, error)
 	Insert(c *models.Chapters) error
+	GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error)
 }
 
 type SQLiteChapterStore struct{}
@@ -42,4 +43,37 @@ func (store *SQLiteChapterStore) Insert(c *models.Chapters) error {
 	}
 	c.ID, _ = res.LastInsertId()
 	return nil
+}
+
+func (s *SQLiteChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error) {
+	query := `
+		SELECT id, series_id, number, volume, status, language 
+		FROM chapters 
+		WHERE series_id = ? AND status = 'Missing'
+		ORDER BY number ASC`
+
+	rows, err := DB.Query(query, seriesID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*models.Chapters
+	for rows.Next() {
+		var ch models.Chapters
+		err := rows.Scan(
+			&ch.ID,
+			&ch.SeriesID,
+			&ch.Number,
+			&ch.Volume,
+			&ch.Status,
+			&ch.Language,
+		)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, &ch)
+	}
+
+	return list, nil
 }

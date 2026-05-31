@@ -13,8 +13,8 @@ import (
 )
 
 type SeriesHandler struct {
-	Store    db.SeriesStore
-	Metadata metadata.Provider
+	Store      db.SeriesStore
+	Metadata   metadata.Provider
 	SyncEngine *sync.MangaDexSyncEngine
 }
 
@@ -72,12 +72,13 @@ func (h *SeriesHandler) getById(w http.ResponseWriter, idStr string) {
 
 func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		AnilistID  string `json:"anilist_id"`
-		MangadexId string `json:"mangadex_id"`
-		Title      string `json:"title"`
-		Status     string `json:"status"`
-		Path       string `json:"path"`
-		TotalChapters int `json:"total_chapters"`
+		AnilistID     string   `json:"anilist_id"`
+		MangadexId    string   `json:"mangadex_id"`
+		Title         string   `json:"title"`
+		AltTitles     []string `json:"alt_titles"`
+		Status        string   `json:"status"`
+		Path          string   `json:"path"`
+		TotalChapters int      `json:"total_chapters"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -95,16 +96,17 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		s.Path = req.Path
 
 		if (s.AnilistID == nil || *s.AnilistID == "") && req.AnilistID != "" {
-            s.AnilistID = db.ToPtr(req.AnilistID)
-            s.TotalChapters = req.TotalChapters
-        }
+			s.AnilistID = db.ToPtr(req.AnilistID)
+			s.TotalChapters = req.TotalChapters
+		}
 	} else {
 		s = models.Series{
-			Title:      req.Title,
-			Status:     req.Status,
-			Path:       req.Path,
-			MangadexID: db.ToPtr(req.MangadexId),
-			AnilistID:  db.ToPtr(req.AnilistID),
+			Title:         req.Title,
+			AltTitles:     req.AltTitles,
+			Status:        req.Status,
+			Path:          req.Path,
+			MangadexID:    db.ToPtr(req.MangadexId),
+			AnilistID:     db.ToPtr(req.AnilistID),
 			TotalChapters: req.TotalChapters,
 		}
 	}

@@ -3,6 +3,7 @@ export interface Series {
   anilist_id?: string | null;
   mangadex_id?: string | null;
   title: string;
+  alt_titles: string[];
   status: string;
   path: string;
   localPath?: string;

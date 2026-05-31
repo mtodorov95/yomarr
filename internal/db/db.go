@@ -31,6 +31,7 @@ func createTables() {
 		anilist_id TEXT UNIQUE,
 		mangadex_id TEXT UNIQUE,
 		title TEXT NOT NULL,
+		alt_titles TEXT DEFAULT '[]',
 		path TEXT NOT NULL,
 		status TEXT,
 		total_chapters INTEGER DEFAULT 0

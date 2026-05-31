@@ -29,6 +29,7 @@ async function handleImport(item: Series) {
                 mangadex_id: item.mangadex_id || null,  
                 anilist_id: item.anilist_id || null,     
                 title: item.title,                  
+                alt_titles: item.alt_titles || [],
                 status: item.status || 'Monitored',     
                 path: item.localPath,
                 total_chapters: item.total_chapters || 0

@@ -1,0 +1,14 @@
+# Ignore environment secrets
+.env
+
+# Ignore local database states
+*.db
+*.db-journal
+
+# Ignore local test downloads
+downloads/
+
+# Ignore standard Go build artifacts/caches
+bin/
+dist/
+.git/

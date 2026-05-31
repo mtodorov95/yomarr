@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 
 	"github.com/mtodorov95/yomarr/internal/models"
 )
@@ -23,7 +24,7 @@ type SeriesStore interface {
 type SQLiteSeriesStore struct{}
 
 func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
-	rows, err := DB.Query("SELECT id, anilist_id, mangadex_id, title, path, status, total_chapters FROM series")
+	rows, err := DB.Query("SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, total_chapters FROM series")
 	if err != nil {
 		return nil, err
 	}
@@ -33,9 +34,11 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 	var list []models.Series
 	for rows.Next() {
 		var s models.Series
-		if err := rows.Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &s.Path, &s.Status, &s.TotalChapters); err != nil {
+		var altStr string
+		if err := rows.Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status, &s.TotalChapters); err != nil {
 			return nil, err
 		}
+		_ = json.Unmarshal([]byte(altStr), &s.AltTitles)
 		list = append(list, s)
 	}
 	return list, nil
@@ -43,7 +46,9 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 
 func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 	var s models.Series
-	err := DB.QueryRow("SELECT id, anilist_id, mangadex_id, title, path, status, total_chapters FROM series WHERE id = ?", id).Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &s.Path, &s.Status)
+	var altStr string
+
+	err := DB.QueryRow("SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, total_chapters FROM series WHERE id = ?", id).Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status, &s.TotalChapters)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -51,13 +56,17 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 		return nil, err
 	}
 
+	_ = json.Unmarshal([]byte(altStr), &s.AltTitles)
+
 	return &s, nil
 }
 
 func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
+	altJSON, _ := json.Marshal(s.AltTitles)
+
 	res, err := DB.Exec(
-		"INSERT INTO series (anilist_id, mangadex_id, title, path, status, total_chapters) VALUES (?,?,?,?,?,?)",
-		s.AnilistID, s.MangadexID, s.Title, s.Path, s.Status, s.TotalChapters,
+		"INSERT INTO series (anilist_id, mangadex_id, title, alt_titles, path, status, total_chapters) VALUES (?,?,?,?,?,?,?)",
+		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status, s.TotalChapters,
 	)
 	if err != nil {
 		return err

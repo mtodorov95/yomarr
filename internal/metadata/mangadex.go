@@ -16,9 +16,10 @@ type MangaDexProvider struct {
 type mdLocalizedString map[string]string
 
 type mdMangaAttributes struct {
-	Title  mdLocalizedString `json:"title"`
-	Status string            `json:"status"`
-	Links  map[string]string `json:"links"`
+	Title     mdLocalizedString   `json:"title"`
+	AltTitles []mdLocalizedString `json:"altTitles"`
+	Status    string              `json:"status"`
+	Links     map[string]string   `json:"links"`
 }
 
 type mdMangaData struct {
@@ -119,9 +120,17 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			alIDPtr = &alID
 		}
 
+		var fallbacks []string
+		for _, alt := range item.Attributes.AltTitles {
+			if enTitle, ok := alt["en"]; ok && enTitle != "" {
+				fallbacks = append(fallbacks, enTitle)
+			}
+		}
+
 		results = append(results, models.Series{
 			MangadexID: &mdID,
 			Title:      getMDTitle(item.Attributes.Title),
+			AltTitles:  fallbacks,
 			Status:     mapMDStatus(item.Attributes.Status),
 			AnilistID:  alIDPtr,
 		})
@@ -153,9 +162,17 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		alIDPtr = &alID
 	}
 
+	var fallbacks []string
+	for _, alt := range res.Data.Attributes.AltTitles {
+		if enTitle, ok := alt["en"]; ok && enTitle != "" {
+			fallbacks = append(fallbacks, enTitle)
+		}
+	}
+
 	return &models.Series{
 		MangadexID: &mdID,
 		AnilistID:  alIDPtr,
+		AltTitles:  fallbacks,
 		Title:      getMDTitle(res.Data.Attributes.Title),
 		Status:     mapMDStatus(res.Data.Attributes.Status),
 	}, nil
