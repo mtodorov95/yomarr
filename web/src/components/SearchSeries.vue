@@ -55,7 +55,7 @@ async function search() {
     <div v-if="results && results.length > 0" class="space-y-3">
       <SeriesCard
         v-for="item in results" 
-        :key="item.anilist_id ?? item.mangadex_id" 
+        :key="item.anilist_id ?? item.mangadex_id!" 
         :item="item" 
         @import="emit('import', $event)" 
       />

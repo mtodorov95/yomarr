@@ -26,11 +26,12 @@ async function handleImport(item: Series) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                mangadex_id: item.mangadex_id,  
+                mangadex_id: item.mangadex_id || null,  
                 anilist_id: item.anilist_id || null,     
                 title: item.title,                  
                 status: item.status || 'Monitored',     
-                path: item.localPath                    
+                path: item.localPath,
+                total_chapters: item.total_chapters || 0
             })
         })
         if (!res.ok) throw new Error('import fail')

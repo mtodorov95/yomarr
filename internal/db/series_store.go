@@ -23,7 +23,7 @@ type SeriesStore interface {
 type SQLiteSeriesStore struct{}
 
 func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
-	rows, err := DB.Query("SELECT id, anilist_id, mangadex_id, title, path, status FROM series")
+	rows, err := DB.Query("SELECT id, anilist_id, mangadex_id, title, path, status, total_chapters FROM series")
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 	var list []models.Series
 	for rows.Next() {
 		var s models.Series
-		if err := rows.Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &s.Path, &s.Status); err != nil {
+		if err := rows.Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &s.Path, &s.Status, &s.TotalChapters); err != nil {
 			return nil, err
 		}
 		list = append(list, s)
@@ -43,7 +43,7 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 
 func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 	var s models.Series
-	err := DB.QueryRow("SELECT id, anilist_id, mangadex_id, title, path, status FROM series WHERE id = ?", id).Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &s.Path, &s.Status)
+	err := DB.QueryRow("SELECT id, anilist_id, mangadex_id, title, path, status, total_chapters FROM series WHERE id = ?", id).Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &s.Path, &s.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -56,8 +56,8 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 
 func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 	res, err := DB.Exec(
-		"INSERT INTO series (anilist_id, mangadex_id, title, path, status) VALUES (?,?,?,?,?)",
-		s.AnilistID, s.MangadexID, s.Title, s.Path, s.Status,
+		"INSERT INTO series (anilist_id, mangadex_id, title, path, status, total_chapters) VALUES (?,?,?,?,?,?)",
+		s.AnilistID, s.MangadexID, s.Title, s.Path, s.Status, s.TotalChapters,
 	)
 	if err != nil {
 		return err

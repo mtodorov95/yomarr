@@ -13,7 +13,8 @@ async function fetchSeries() {
     try {
         const res = await fetch('/api/series')
         if (!res.ok) throw new Error('fetch fail')
-        series.value = await res.json()
+        const data = await res.json() ?? [];
+        series.value = data
     } catch (e) {
         console.error(e)
     } finally {
@@ -46,23 +47,19 @@ onMounted(fetchSeries)
         </template>
 
         <template v-else>
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold">Library</h2>
-            <button @click="fetchSeries"
-                class="text-sm bg-slate-800 px-3 py-1 rounded border border-slate-700">Refresh</button>
-        </div>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">Library</h2>
+                <button @click="fetchSeries"
+                    class="text-sm bg-slate-800 px-3 py-1 rounded border border-slate-700">Refresh</button>
+            </div>
 
-        <div v-if="loading" class="text-slate-500">Loading library...</div>
+            <div v-if="loading" class="text-slate-500">Loading library...</div>
 
-        <template v-else>
-            <SeriesList 
-                v-if="series.length > 0" 
-                :seriesList="series" 
-                @delete="removeSeries" 
-                @select="s => selectedSeries = s"
-                />
-            <div v-else class="text-slate-500 italic">Library empty. Search and import series.</div>
-        </template>
+            <template v-else>
+                <SeriesList v-if="series.length > 0" :seriesList="series" @delete="removeSeries"
+                    @select="s => selectedSeries = s" />
+                <div v-else class="text-slate-500 italic">Library empty. Search and import series.</div>
+            </template>
         </template>
     </div>
 </template>

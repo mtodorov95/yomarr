@@ -77,6 +77,7 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		Title      string `json:"title"`
 		Status     string `json:"status"`
 		Path       string `json:"path"`
+		TotalChapters int `json:"total_chapters"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -84,14 +85,19 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var s models.Series
-	if req.AnilistID != "" {
-		extSeries, err := h.Metadata.GetDetails(req.AnilistID)
+	if req.MangadexId != "" {
+		extSeries, err := h.Metadata.GetDetails(req.MangadexId)
 		if err != nil {
 			http.Error(w, "Metadata fetch fail: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		s = *extSeries
 		s.Path = req.Path
+
+		if (s.AnilistID == nil || *s.AnilistID == "") && req.AnilistID != "" {
+            s.AnilistID = db.ToPtr(req.AnilistID)
+            s.TotalChapters = req.TotalChapters
+        }
 	} else {
 		s = models.Series{
 			Title:      req.Title,
@@ -99,6 +105,7 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 			Path:       req.Path,
 			MangadexID: db.ToPtr(req.MangadexId),
 			AnilistID:  db.ToPtr(req.AnilistID),
+			TotalChapters: req.TotalChapters,
 		}
 	}
 
@@ -107,7 +114,7 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.MangadexId != "" {
+	if s.MangadexID != nil && *s.MangadexID != "" {
 		if err := h.SyncEngine.SyncChapters(s.ID, req.MangadexId); err != nil {
 			log.Printf("Non-fatal chapter ingestion sync error: %v", err)
 		}

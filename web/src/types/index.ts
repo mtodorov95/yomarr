@@ -6,6 +6,7 @@ export interface Series {
   status: string;
   path: string;
   localPath?: string;
+  total_chapters?: number
 }
 
 export interface Chapter {
@@ -16,4 +17,5 @@ export interface Chapter {
   file_path?: string | null
   status: string
   release_date?: string | null
+  language: string
 }

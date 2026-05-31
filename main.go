@@ -27,8 +27,11 @@ func main() {
 	// Server
 	mux := http.NewServeMux()
 	client := &http.Client{}
-	//anilist := &metadata.AnilistProvider{Client: client}
+	// Metadata
+	anilist := &metadata.AnilistProvider{Client: client}
 	mangadex := &metadata.MangaDexProvider{Client: client}
+	aggregator := metadata.NewAggregatorMetadataProvider(mangadex, anilist)
+	// Sync
 	syncEngine := sync.NewMangaDexSyncEngine(&db.SQLiteChapterStore{}, mangadex)
 
 	// API routes
@@ -36,7 +39,7 @@ func main() {
 
 	seriesHandler := &api.SeriesHandler{
 		Store:      &db.SQLiteSeriesStore{},
-		Metadata:   mangadex,
+		Metadata:   aggregator,
 		SyncEngine: syncEngine,
 	}
 

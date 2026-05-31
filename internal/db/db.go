@@ -32,7 +32,8 @@ func createTables() {
 		mangadex_id TEXT UNIQUE,
 		title TEXT NOT NULL,
 		path TEXT NOT NULL,
-		status TEXT
+		status TEXT,
+		total_chapters INTEGER DEFAULT 0
 	);
 
 	CREATE TABLE IF NOT EXISTS chapters (
@@ -42,7 +43,8 @@ func createTables() {
 		volume INTEGER,
 		file_path TEXT,
 		status TEXT,
-		release_date DATETIME
+		release_date DATETIME,
+		language TEXT
 	);
 
 	CREATE TABLE IF NOT EXISTS indexers (

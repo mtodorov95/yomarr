@@ -34,14 +34,17 @@ func (e *MangaDexSyncEngine) SyncChapters(seriesID int64, mangadexID string) err
 		return fmt.Errorf("failed fetching local cache: %w", err)
 	}
 
-	existingMap := make(map[float64]bool)
+	existingMap := make(map[string]bool)
 	for _, ch := range existing {
-		existingMap[ch.Number] = true
+		key := fmt.Sprintf("%f-%s", ch.Number, ch.Language)
+		existingMap[key] = true
 	}
 
 	var insertedCount int
 	for _, rCh := range remoteChapters {
-		if !existingMap[rCh.Number] {
+		remoteKey := fmt.Sprintf("%f-%s", rCh.Number, rCh.Language)
+
+		if !existingMap[remoteKey] {
 			var volPtr *int
 			if rCh.Volume != nil && *rCh.Volume != "" {
 				if v, err := strconv.Atoi(*rCh.Volume); err == nil {
@@ -55,12 +58,13 @@ func (e *MangaDexSyncEngine) SyncChapters(seriesID int64, mangadexID string) err
 				Volume:   volPtr,
 				Status:   "Missing",
 				FilePath: nil,
+				Language: rCh.Language,
 			}
 
 			if err := e.ChapterStore.Insert(newChapter); err != nil {
 				return err
 			}
-			existingMap[rCh.Number] = true
+			existingMap[remoteKey] = true
 			insertedCount++
 		}
 	}

@@ -18,6 +18,7 @@ type mdLocalizedString map[string]string
 type mdMangaAttributes struct {
 	Title  mdLocalizedString `json:"title"`
 	Status string            `json:"status"`
+	Links  map[string]string `json:"links"`
 }
 
 type mdMangaData struct {
@@ -34,9 +35,11 @@ type mdDetailsResponse struct {
 }
 
 type mdChapterAttributes struct {
-	Volume  *string `json:"volume"`
-	Chapter string  `json:"chapter"`
-	Title   string  `json:"title"`
+	Volume             *string `json:"volume"`
+	Chapter            string  `json:"chapter"`
+	Title              string  `json:"title"`
+	TranslatedLanguage string  `json:"translatedLanguage"`
+	PublishAt          string  `json:"publishAt"`
 }
 
 type mdChapterData struct {
@@ -49,12 +52,16 @@ type mdFeedResponse struct {
 }
 
 type ExtChapter struct {
-	Number float64
-	Volume *string
-	Title  string
+	Number   float64
+	Volume   *string
+	Title    string
+	Language string
 }
 
 func getMDTitle(titleMap mdLocalizedString) string {
+	if t, ok := titleMap["ja"]; ok && t != "" {
+		return t
+	}
 	if t, ok := titleMap["en"]; ok && t != "" {
 		return t
 	}
@@ -68,12 +75,12 @@ func getMDTitle(titleMap mdLocalizedString) string {
 
 func mapMDStatus(status string) string {
 	switch status {
-		case "ongoing":
-			return "Monitored"
-		case "completed":
-			return "Ended"
-		default:
-			return "Monitored"
+	case "ongoing":
+		return "Monitored"
+	case "completed":
+		return "Ended"
+	default:
+		return "Monitored"
 	}
 }
 
@@ -107,10 +114,16 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 	var results []models.Series
 	for _, item := range res.Data {
 		mdID := item.ID
+		var alIDPtr *string
+		if alID, ok := item.Attributes.Links["al"]; ok && alID != "" {
+			alIDPtr = &alID
+		}
+
 		results = append(results, models.Series{
 			MangadexID: &mdID,
 			Title:      getMDTitle(item.Attributes.Title),
 			Status:     mapMDStatus(item.Attributes.Status),
+			AnilistID:  alIDPtr,
 		})
 	}
 
@@ -135,8 +148,14 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 	}
 
 	mdID := res.Data.ID
+	var alIDPtr *string
+	if alID, ok := res.Data.Attributes.Links["al"]; ok && alID != "" {
+		alIDPtr = &alID
+	}
+
 	return &models.Series{
 		MangadexID: &mdID,
+		AnilistID:  alIDPtr,
 		Title:      getMDTitle(res.Data.Attributes.Title),
 		Status:     mapMDStatus(res.Data.Attributes.Status),
 	}, nil
@@ -175,16 +194,17 @@ func (p *MangaDexProvider) GetChapterFeed(mangadexID string) ([]ExtChapter, erro
 		if ch.Attributes.Chapter == "" {
 			continue
 		}
-		
+
 		var num float64
 		if _, err := fmt.Sscanf(ch.Attributes.Chapter, "%f", &num); err != nil {
-			continue // Skip unparseable chapter numbers
+			continue
 		}
 
 		list = append(list, ExtChapter{
-			Number: num,
-			Volume: ch.Attributes.Volume,
-			Title:  ch.Attributes.Title,
+			Number:   num,
+			Volume:   ch.Attributes.Volume,
+			Title:    ch.Attributes.Title,
+			Language: ch.Attributes.TranslatedLanguage,
 		})
 	}
 

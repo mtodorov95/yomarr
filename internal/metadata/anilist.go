@@ -22,6 +22,7 @@ const detailsQuery = `
 			id
 			title {romaji english}
 			status
+			chapters
 		}
 	}
 `
@@ -117,6 +118,7 @@ func (p *AnilistProvider) GetDetails(id string) (*models.Series, error) {
 					English string `json:"english"`
 				} `json:"title"`
 				Status string `json:"status"`
+				Chapters *int `json:"chapters"`
 			} `json:"Media"`
 		} `json:"data"`
 	}
@@ -130,9 +132,15 @@ func (p *AnilistProvider) GetDetails(id string) (*models.Series, error) {
 		title = data.Data.Media.Title.Romaji
 	}
 
+	var rawCount int
+	if data.Data.Media.Chapters != nil {
+		rawCount = *data.Data.Media.Chapters
+	}
+
 	return &models.Series{
 		AnilistID: db.ToPtr(fmt.Sprintf("%d", data.Data.Media.ID)),
 		Title:     title,
 		Status:    data.Data.Media.Status,
+		TotalChapters: rawCount,
 	}, nil
 }

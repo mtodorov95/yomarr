@@ -11,7 +11,7 @@ type SQLiteChapterStore struct{}
 
 func (store *SQLiteChapterStore) GetBySeriesId(seriesId int64) ([]models.Chapters, error) {
 	rows, err := DB.Query(
-		"SELECT id, series_id, number, volume, file_path, status, release_date FROM chapters WHERE series_id = ? ORDER BY number ASC",
+		"SELECT id, series_id, number, volume, file_path, status, release_date, language FROM chapters WHERE series_id = ? ORDER BY number ASC",
 		seriesId,
 	)
 
@@ -23,7 +23,7 @@ func (store *SQLiteChapterStore) GetBySeriesId(seriesId int64) ([]models.Chapter
 	var list []models.Chapters
 	for rows.Next() {
 		var c models.Chapters
-		if err := rows.Scan(&c.ID, &c.SeriesID, &c.Number, &c.Volume, &c.FilePath, &c.Status, &c.ReleaseDate); err != nil {
+		if err := rows.Scan(&c.ID, &c.SeriesID, &c.Number, &c.Volume, &c.FilePath, &c.Status, &c.ReleaseDate, &c.Language); err != nil {
 			return nil, err
 		}
 		list = append(list, c)
@@ -34,8 +34,8 @@ func (store *SQLiteChapterStore) GetBySeriesId(seriesId int64) ([]models.Chapter
 
 func (store *SQLiteChapterStore) Insert(c *models.Chapters) error {
 	res, err := DB.Exec(
-		"INSERT INTO chapters (series_id, number, volume, file_path, status, release_date) VALUES (?,?,?,?,?,?)",
-		c.SeriesID, c.Number, c.Volume, c.FilePath, c.Status, c.ReleaseDate,
+		"INSERT INTO chapters (series_id, number, volume, file_path, status, release_date, language) VALUES (?,?,?,?,?,?,?)",
+		c.SeriesID, c.Number, c.Volume, c.FilePath, c.Status, c.ReleaseDate, c.Language,
 	)
 	if err != nil {
 		return err
