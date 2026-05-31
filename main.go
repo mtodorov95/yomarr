@@ -10,6 +10,7 @@ import (
 	"github.com/mtodorov95/yomarr/internal/api"
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/metadata"
+	"github.com/mtodorov95/yomarr/internal/sync"
 )
 
 //go:embed all:web/dist
@@ -26,15 +27,19 @@ func main() {
 	// Server
 	mux := http.NewServeMux()
 	client := &http.Client{}
-	anilist := &metadata.AnilistProvider{Client: client}
+	//anilist := &metadata.AnilistProvider{Client: client}
+	mangadex := &metadata.MangaDexProvider{Client: client}
+	syncEngine := sync.NewMangaDexSyncEngine(&db.SQLiteChapterStore{}, mangadex)
 
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)
 
 	seriesHandler := &api.SeriesHandler{
-		Store: &db.SQLiteSeriesStore{},
-		Metadata: anilist,
+		Store:      &db.SQLiteSeriesStore{},
+		Metadata:   mangadex,
+		SyncEngine: syncEngine,
 	}
+
 	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)
 
 	chapterHandler := &api.ChapterHandler{Store: &db.SQLiteChapterStore{}}

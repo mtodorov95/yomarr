@@ -18,7 +18,7 @@ const localPath = ref(props.item.localPath || `/mnt/manga/${props.item.title}`)
         <div class="flex justify-between items-start">
             <div>
                 <p class="font-bold text-white text-lg">{{ item.title }}</p>
-                <p class="text-xs text-slate-400">AniList ID: {{ item.anilist_id }} | Status: {{ item.status }}</p>
+                <p class="text-xs text-slate-400">Status: {{ item.status }}</p>
             </div>
         </div>
 

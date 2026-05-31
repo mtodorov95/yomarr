@@ -17,6 +17,7 @@ type SeriesStore interface {
 	GetAll() ([]models.Series, error)
 	GetById(id int64) (*models.Series, error)
 	Insert(s *models.Series) error
+	Delete(id int64) error
 }
 
 type SQLiteSeriesStore struct{}
@@ -63,4 +64,9 @@ func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 	}
 	s.ID, _ = res.LastInsertId()
 	return nil
+}
+
+func (store *SQLiteSeriesStore) Delete(id int64) error {
+	_, err := DB.Exec("DELETE FROM series WHERE id = ?", id)
+	return err
 }

@@ -17,8 +17,8 @@ type Chapters struct {
 	ID          int64     `json:"id"`
 	SeriesID    int64     `json:"series_id"`
 	Number      float64   `json:"number"`
-	Volume      int       `json:"volume"`
-	FilePath    string    `json:"file_path"`
+	Volume      *int       `json:"volume"`
+	FilePath    *string    `json:"file_path"`
 	Status      string    `json:"status"`
-	ReleaseDate time.Time `json:"release_date"`
+	ReleaseDate *time.Time `json:"release_date"`
 }

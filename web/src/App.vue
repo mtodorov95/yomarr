@@ -26,12 +26,17 @@ async function handleImport(item: Series) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                anilist_id: item.anilist_id,
-                path: item.localPath
+                mangadex_id: item.mangadex_id,  
+                anilist_id: item.anilist_id || null,     
+                title: item.title,                  
+                status: item.status || 'Monitored',     
+                path: item.localPath                    
             })
         })
         if (!res.ok) throw new Error('import fail')
         alert(`Imported: ${item.title}`)
+        
+        view.value = 'dashboard'
     } catch (e) {
         console.error(e)
         alert('Import failed')

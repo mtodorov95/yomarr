@@ -2,17 +2,20 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/metadata"
 	"github.com/mtodorov95/yomarr/internal/models"
+	"github.com/mtodorov95/yomarr/internal/sync"
 )
 
 type SeriesHandler struct {
 	Store    db.SeriesStore
 	Metadata metadata.Provider
+	SyncEngine *sync.MangaDexSyncEngine
 }
 
 func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +36,12 @@ func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
 		h.getAll(w)
 	case http.MethodPost:
 		h.create(w, r)
+	case http.MethodDelete:
+		idStr := r.URL.Query().Get("id")
+		if idStr != "" {
+			h.delete(w, idStr)
+			return
+		}
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -97,6 +106,13 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if req.MangadexId != "" {
+		if err := h.SyncEngine.SyncChapters(s.ID, req.MangadexId); err != nil {
+			log.Printf("Non-fatal chapter ingestion sync error: %v", err)
+		}
+	}
+
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(s)
 }
@@ -108,4 +124,19 @@ func (h *SeriesHandler) searchMetadata(w http.ResponseWriter, query string) {
 		return
 	}
 	json.NewEncoder(w).Encode(results)
+}
+
+func (h *SeriesHandler) delete(w http.ResponseWriter, idStr string) {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "Invalid series ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Store.Delete(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
