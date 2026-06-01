@@ -5,7 +5,9 @@ import "github.com/mtodorov95/yomarr/internal/models"
 type ChapterStore interface {
 	GetBySeriesId(seriesId int64) ([]models.Chapters, error)
 	Insert(c *models.Chapters) error
+	Update(c *models.Chapters) error
 	GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error)
+	GetByStatus(status string) ([]*models.Chapters, error)
 }
 
 type SQLiteChapterStore struct{}
@@ -45,7 +47,7 @@ func (store *SQLiteChapterStore) Insert(c *models.Chapters) error {
 	return nil
 }
 
-func (s *SQLiteChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error) {
+func (store *SQLiteChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error) {
 	query := `
 		SELECT id, series_id, number, volume, status, language 
 		FROM chapters 
@@ -76,4 +78,54 @@ func (s *SQLiteChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models.Cha
 	}
 
 	return list, nil
+}
+
+func (store *SQLiteChapterStore) GetByStatus(status string) ([]*models.Chapters, error) {
+	query := `
+		SELECT id, series_id, number, volume, status, language 
+		FROM chapters 
+		WHERE status = ?
+		ORDER BY number ASC`
+
+	rows, err := DB.Query(query, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*models.Chapters
+	for rows.Next() {
+		var ch models.Chapters
+		err := rows.Scan(
+			&ch.ID,
+			&ch.SeriesID,
+			&ch.Number,
+			&ch.Volume,
+			&ch.Status,
+			&ch.Language,
+		)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, &ch)
+	}
+
+	return list, nil
+}
+
+func (store *SQLiteChapterStore) Update(c *models.Chapters) error {
+	query := `
+		UPDATE chapters 
+		SET volume = ?, status = ?, language = ?, file_path = ?
+		WHERE id = ?
+	`
+	_, err := DB.Exec(
+		query, 
+		c.Volume, 
+		c.Status, 
+		c.Language, 
+		c.FilePath, 
+		c.ID,
+	)
+	return err
 }

@@ -20,6 +20,7 @@ import (
 var webAssets embed.FS
 
 func main() {
+	// Env
 	config.LoadEnv()
 	qbitURL := os.Getenv("QBIT_URL")
 	if qbitURL == "" { qbitURL = "http://127.0.0.1:8080" }
@@ -59,6 +60,10 @@ func main() {
 	// Sync
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
 	nyaaEngine := sync.NewNyaaSyncEngine(chapterStore, seriesStore, nyaaIndexer, qbClient)
+	if qbClient != nil {
+		monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, qbClient)
+		monitor.Start()
+	}
 
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)

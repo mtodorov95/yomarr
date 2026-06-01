@@ -6,6 +6,10 @@ import (
 )
 
 var (
+	// Matches strict light novel indicators to block accidental downloads
+	// Matches "[LN]", "(LN)", "~ LN ~", "Light Novel", "Novel v01"
+	lnBlacklistRegex = regexp.MustCompile(`(?i)\b(ln|light\s*novel|novel)\b`)
+
 	// Matches and targets year ranges to erase them: "(2023-2025)", "[2023-2025]"
 	yearRangeRegex = regexp.MustCompile(`(?i)[([ ]\d{4}\s*-\s*\d{4}[)\] ]`)
 
@@ -33,6 +37,10 @@ type ParsedRelease struct {
 }
 
 func ParseTorrentTitle(title string) (ParsedRelease, bool) {
+	if lnBlacklistRegex.MatchString(title) {
+		return ParsedRelease{}, false
+	}
+
 	cleanedTitle := yearRangeRegex.ReplaceAllString(title, " ")
 
 	if volMatches := volRegex.FindStringSubmatch(cleanedTitle); len(volMatches) > 1 {

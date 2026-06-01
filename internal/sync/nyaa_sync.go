@@ -27,25 +27,13 @@ func NewNyaaSyncEngine(cs db.ChapterStore, ss db.SeriesStore, idx *indexer.NyaaI
 	}
 }
 
-func translatePath(originalPath string) string {
-	originalPath = strings.TrimSpace(originalPath)
-
-	localRoot := os.Getenv("MANGA_ROOT")
-	if localRoot == "" {
-	log.Printf("Path: %s", originalPath)
-		return originalPath
+func translatePath(seriesTitle string) string {
+	downloadRoot := os.Getenv("MANGA_DOWNLOAD_ROOT")
+	if downloadRoot == "" {
+		return filepath.Join("/mnt/downloads", seriesTitle)
 	}
 
-	if strings.HasPrefix(originalPath, "/mnt/manga") {
-		relPath := strings.TrimPrefix(originalPath, "/mnt/manga")
-		relPath = strings.TrimPrefix(relPath, "/")
-
-	log.Printf("Path: %s/%s", localRoot, relPath)
-		return filepath.Join(localRoot, relPath)
-	}
-	log.Printf("Path: %s", originalPath)
-
-	return originalPath
+	return filepath.Join(downloadRoot, seriesTitle)
 }
 
 func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
@@ -72,8 +60,6 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 		}
 	}
 
-	log.Printf("Results: %v", results)
-
 	if len(results) == 0 {
 		log.Printf("Total search blackout on Nyaa across all known titles for: %s", series.Title)
 		return nil
@@ -90,9 +76,12 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 
 			isMatch := false
 
+			titleLower := strings.ToLower(res.Title)
 			if !ok {
-				if strings.Contains(strings.ToLower(res.Title), "complete") || strings.Contains(strings.ToLower(res.Title), "digital") {
-					isMatch = true
+				if !strings.Contains(titleLower, "ln") && !strings.Contains(titleLower, "novel") {
+					if strings.Contains(titleLower, "complete") || strings.Contains(titleLower, "digital") {
+						isMatch = true
+					}
 				}
 			} else {
 				switch parsed.Type {
@@ -127,11 +116,11 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			if downloadedTorrents[bestTorrent.InfoHash] {
 				// Already queued
 				ch.Status = "Downloading"
-				// _ = e.ChapterStore.Update(ch)
+				_ = e.ChapterStore.Update(ch)
 				continue
 			}
 
-			targetPath := translatePath(series.Path)
+			targetPath := translatePath(series.Title)
 
 			log.Printf("Preparing download folder on disk: %s", targetPath)
 
@@ -142,7 +131,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 
 			log.Printf("Found optimal release for %s Ch %g -> %s (Seeds: %d)", series.Title, ch.Number, bestTorrent.Title, bestTorrent.Seeders)
 
-			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath)
+			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, series.Title)
 			if err != nil {
 				log.Printf("Failed to dispatch torrent to client: %v", err)
 				continue
@@ -150,7 +139,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 
 			downloadedTorrents[bestTorrent.InfoHash] = true
 			ch.Status = "Downloading"
-			// _ = e.ChapterStore.Update(ch)
+			_ = e.ChapterStore.Update(ch)
 		} else {
 			log.Printf("No available candidate on Nyaa matches %s Ch %g (Vol %v)", series.Title, ch.Number, ch.Volume)
 		}
