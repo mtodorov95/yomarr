@@ -16,11 +16,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o yomarr main.go
 
 # Final
 FROM alpine:latest
-WORKDIR /root/
+WORKDIR /app/
 COPY --from=builder /app/yomarr .
-
-RUN mkdir -p /data
-ENV DB_PATH=/data/yomarr.db
 
 EXPOSE 8080
 CMD ["./yomarr"]

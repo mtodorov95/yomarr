@@ -7,7 +7,7 @@ type ChapterStore interface {
 	Insert(c *models.Chapters) error
 	Update(c *models.Chapters) error
 	GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error)
-	GetByStatus(status string) ([]*models.Chapters, error)
+	GetByStatus(status string) ([]models.Chapters, error)
 }
 
 type SQLiteChapterStore struct{}
@@ -80,7 +80,7 @@ func (store *SQLiteChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models
 	return list, nil
 }
 
-func (store *SQLiteChapterStore) GetByStatus(status string) ([]*models.Chapters, error) {
+func (store *SQLiteChapterStore) GetByStatus(status string) ([]models.Chapters, error) {
 	query := `
 		SELECT id, series_id, number, volume, status, language 
 		FROM chapters 
@@ -93,7 +93,7 @@ func (store *SQLiteChapterStore) GetByStatus(status string) ([]*models.Chapters,
 	}
 	defer rows.Close()
 
-	var list []*models.Chapters
+	var list []models.Chapters
 	for rows.Next() {
 		var ch models.Chapters
 		err := rows.Scan(
@@ -107,7 +107,7 @@ func (store *SQLiteChapterStore) GetByStatus(status string) ([]*models.Chapters,
 		if err != nil {
 			return nil, err
 		}
-		list = append(list, &ch)
+		list = append(list, ch)
 	}
 
 	return list, nil

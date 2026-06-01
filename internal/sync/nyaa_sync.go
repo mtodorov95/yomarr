@@ -3,7 +3,6 @@ package sync
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mtodorov95/yomarr/internal/db"
@@ -27,13 +26,13 @@ func NewNyaaSyncEngine(cs db.ChapterStore, ss db.SeriesStore, idx *indexer.NyaaI
 	}
 }
 
-func translatePath(seriesTitle string) string {
+func getDownloadsPath() string {
 	downloadRoot := os.Getenv("MANGA_DOWNLOAD_ROOT")
 	if downloadRoot == "" {
-		return filepath.Join("/mnt/downloads", seriesTitle)
+		return "/downloads"
 	}
 
-	return filepath.Join(downloadRoot, seriesTitle)
+	return downloadRoot
 }
 
 func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
@@ -120,7 +119,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 				continue
 			}
 
-			targetPath := translatePath(series.Title)
+			targetPath := getDownloadsPath()
 
 			log.Printf("Preparing download folder on disk: %s", targetPath)
 
@@ -131,7 +130,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 
 			log.Printf("Found optimal release for %s Ch %g -> %s (Seeds: %d)", series.Title, ch.Number, bestTorrent.Title, bestTorrent.Seeders)
 
-			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, series.Title)
+			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath)
 			if err != nil {
 				log.Printf("Failed to dispatch torrent to client: %v", err)
 				continue

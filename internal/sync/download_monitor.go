@@ -21,6 +21,7 @@ type DownloadMonitor struct {
 	ChapterStore db.ChapterStore
 	SeriesStore  db.SeriesStore
 	QBClient     *download.QBittorrentClient
+	importedHashes map[string]bool
 }
 
 type QBTorrentInfo struct {
@@ -35,35 +36,34 @@ func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, qb *download.QBit
 		ChapterStore: cs,
 		SeriesStore:  ss,
 		QBClient:     qb,
+		importedHashes: make(map[string]bool),
 	}
 }
 
 func (m *DownloadMonitor) importToLibrary(seriesTitle string, torrentName string) (string, error) {
 	downloadRoot := os.Getenv("MANGA_DOWNLOAD_ROOT")
 	if downloadRoot == "" {
-		downloadRoot = "/mnt/downloads"
+		downloadRoot = "/downloads"
 	}
 	libraryRoot := os.Getenv("MANGA_LIBRARY_ROOT")
 	if libraryRoot == "" {
-		libraryRoot = "/mnt/manga"
+		libraryRoot = "/Manga"
 	}
 
-	srcPath := filepath.Join(downloadRoot, seriesTitle, torrentName)
+	srcPath := filepath.Join(downloadRoot, torrentName)
 
 	destDir := filepath.Join(libraryRoot, seriesTitle)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return "", err
 	}
 
-	destPath := filepath.Join(destDir, torrentName)
+	log.Printf("[Importer] Moving media asset from %s to permanent library %s", srcPath, destDir)
 
-	log.Printf("[Importer] Moving media asset from %s to permanent library %s", srcPath, destPath)
-
-	err := os.Rename(srcPath, destPath)
+	err := os.Rename(srcPath, destDir)
 	if err != nil {
 		// If os.Rename fails because src and dest are on separate physical drives, fallback to a manual stream copy
 		log.Printf("[Importer] Direct move failed (cross-device link), falling back to deep file copy...")
-		err = copyFileOrDir(srcPath, destPath)
+		err = copyFileOrDir(srcPath, destDir)
 		if err != nil {
 			return "", err
 		}
@@ -71,7 +71,7 @@ func (m *DownloadMonitor) importToLibrary(seriesTitle string, torrentName string
 		// os.RemoveAll(srcPath)
 	}
 
-	return destPath, nil
+	return destDir, nil
 }
 
 func copyFileOrDir(src string, dest string) error {
@@ -179,6 +179,11 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 		if torrent.Progress != 1.0 {
 			continue
 		}
+
+		if m.importedHashes[torrent.Hash] {
+			continue
+		}
+
 		torrentNameLower := strings.ToLower(torrent.Name)
 		parsed, ok := indexer.ParseTorrentTitle(torrent.Name)
 
@@ -191,15 +196,15 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 
 					log.Printf("[Monitor] Full series batch finished for: %s! Processing all chapters...", series.Title)
 
-					for i := range allChapters {
-						ch := allChapters[i]
-						if ch.SeriesID == series.ID && ch.Status == "Downloading" {
+					finalLibraryPath, err := m.importToLibrary(series.Title, torrent.Name)
+					if err != nil {
+						log.Printf("[Monitor Error] Failed importing file to library: %v", err)
+						continue
+					}
 
-							finalLibraryPath, err := m.importToLibrary(series.Title, torrent.Name)
-							if err != nil {
-								log.Printf("[Monitor Error] Failed importing file to library: %v", err)
-								continue
-							}
+					for i := range allChapters {
+						ch := &allChapters[i]
+						if ch.SeriesID == series.ID && ch.Status == "Downloading" {
 
 							ch.Status = "Downloaded"
 							ch.FilePath = &finalLibraryPath
@@ -209,13 +214,16 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 							}
 						}
 					}
+
+					m.importedHashes[torrent.Hash] = true
 				}
 			}
 			continue
 		}
 
+		torrentImported := false
 		for i := range allChapters {
-			ch := allChapters[i]
+			ch := &allChapters[i]
 
 			isMatch := false
 			switch parsed.Type {
@@ -253,7 +261,13 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 				if err := m.ChapterStore.Update(ch); err != nil {
 					log.Printf("[Monitor Error] Failed updating database for Ch %g: %v", ch.Number, err)
 				}
+
+				torrentImported = true
 			}
+		}
+
+		if torrentImported {
+			m.importedHashes[torrent.Hash] = true
 		}
 	}
 
