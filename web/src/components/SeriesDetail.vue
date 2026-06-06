@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { Series, Chapter } from '../types'
+import { useToast } from '@/composables/useToast';
 
 const props = defineProps<{
     id: string
 }>()
 
+const toast = useToast();
 const series = ref<Series | null>(null)
 const chapters = ref<Chapter[]>([])
 const loading = ref(true)
@@ -27,6 +29,7 @@ async function loadPageData() {
         chapters.value = await chaptersRes.json()
     } catch (e) {
         console.error(e)
+        toast.error("Faield to fetch chapters")
     } finally {
         loading.value = false
     }
@@ -39,10 +42,10 @@ async function searchMissingChapters() {
       method: 'POST'
     })
     if (!res.ok) throw new Error('Search request failed')
-    alert('Search started in background')
+    toast.info('Search started in background')
   } catch (e) {
     console.error(e)
-    alert('Search trigger failed')
+    toast.error('Search trigger failed')
   }
 }
 

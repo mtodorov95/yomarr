@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { Series } from './types'
-import SearchSeries from './components/SearchSeries.vue'
-import Dashboard from './components/Dashboard.vue'
+import ToastContainer from './components/ToastContainer.vue'
+import { useToast } from './composables/useToast'
 
 const status = ref('loading...')
+const toast = useToast()
 
 onMounted(async () => {
     try {
@@ -14,6 +15,7 @@ onMounted(async () => {
         status.value = data.status
     } catch (e) {
         status.value = 'error'
+        toast.error("Backend offline")
     }
 })
 
@@ -35,10 +37,10 @@ async function handleImport(item: Series) {
             })
         })
         if (!res.ok) throw new Error('import fail')
-        alert(`Imported: ${item.title}`)
+        toast.success(`Imported: ${item.title}`);
     } catch (e) {
         console.error(e)
-        alert('Import failed')
+        toast.error(`Import failed for ${item.title}`)
     }
 }
 </script>
@@ -73,6 +75,8 @@ async function handleImport(item: Series) {
         </div>
 
         <RouterView @import="handleImport" />
+
+        <ToastContainer />
     </div>
 </template>
 

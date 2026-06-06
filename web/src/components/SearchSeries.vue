@@ -19,7 +19,7 @@ async function search() {
         const data = await res.json()
         results.value = data ? data.map((s: Series) => ({
             ...s,
-            localPath: `/mnt/manga/${s.title}`
+            localPath: `/Manga/${s.title}`
         })) : []
     } catch (e) {
         console.error(e)

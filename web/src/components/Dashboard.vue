@@ -2,12 +2,16 @@
 import { ref, onMounted } from 'vue'
 import type { Series } from '../types'
 import SeriesList from './SeriesList.vue'
-import SeriesDetail from './SeriesDetail.vue'
 import { useRouter } from 'vue-router'
+import { useToast } from '@/composables/useToast'
+import ConfirmationModal from './ConfirmationModal.vue'
 
 const router = useRouter()
+const toast = useToast()
 const series = ref<Series[]>([])
 const loading = ref(true)
+const isModalOpen = ref(false)
+const seriesToDelete = ref<number | null>(null)
 
 async function fetchSeries() {
     loading.value = true
@@ -18,24 +22,41 @@ async function fetchSeries() {
         series.value = data
     } catch (e) {
         console.error(e)
+        toast.error("Failed fetching series")
     } finally {
         loading.value = false
     }
 }
 
-async function removeSeries(id: number) {
-    if (!confirm('Are you sure you want to remove this series?')) return
+function triggerDeleteConfirmation(id: number) {
+    seriesToDelete.value = id
+    isModalOpen.value = true
+}
+
+async function removeSeries() {
+    if (seriesToDelete.value === null) return
+
+    const id = seriesToDelete.value
+    isModalOpen.value = false
+    seriesToDelete.value = null
 
     try {
         const res = await fetch(`/api/series?id=${id}`, { method: 'DELETE' })
         if (res.ok) {
             series.value = series.value.filter(s => s.id !== id)
+            toast.success("Series removed")
         } else {
-            alert('Failed to remove series')
+            toast.error('Failed to remove series')
         }
     } catch (e) {
         console.error(e)
+        toast.error('Failed to remove series')
     }
+}
+
+function closeModal() {
+    isModalOpen.value = false
+    seriesToDelete.value = null
 }
 
 function handleSelect(s: Series) {
@@ -55,11 +76,23 @@ onMounted(fetchSeries)
         <div v-if="loading" class="info-message">Loading library...</div>
 
         <template v-else>
-            <SeriesList v-if="series.length > 0" :seriesList="series" @delete="removeSeries" @select="handleSelect" />
+            <SeriesList 
+            v-if="series.length > 0" 
+            :seriesList="series" 
+            @delete="triggerDeleteConfirmation" 
+            @select="handleSelect" />
             <div v-else class="info-message status-empty">
                 Library empty. Search and import series.
             </div>
         </template>
+
+        <ConfirmationModal 
+            :isOpen="isModalOpen"
+            title="Remove Series"
+            message="Are you sure you want to remove this series from the database? This action will drop tracker mappings."
+            @close="closeModal"
+            @confirm="removeSeries"
+        />
     </div>
 </template>
 

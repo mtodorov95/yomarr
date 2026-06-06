@@ -46,6 +46,8 @@ function handleDelete(id: number | undefined) {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1rem;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
@@ -65,6 +67,8 @@ function handleDelete(id: number | undefined) {
     justify-content: space-between;
     transition: background-color 0.2s, border-color 0.2s;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    min-width: 0;
+    overflow: hidden;
 }
 
 .series-item-card:hover {
@@ -77,16 +81,19 @@ function handleDelete(id: number | undefined) {
     justify-content: space-between;
     align-items: flex-start;
     gap: 0.5rem;
+    width: 100%;
 }
 
 .series-card-title {
     font-weight: 700;
     color: #60a5fa;
     margin: 0;
+    font-size: 1.125rem;
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 80%;
 }
 
 .remove-button {
@@ -97,6 +104,7 @@ function handleDelete(id: number | undefined) {
     cursor: pointer;
     padding: 0;
     transition: color 0.2s;
+    flex-shrink: 0;
 }
 
 .remove-button:hover {
@@ -112,13 +120,17 @@ function handleDelete(id: number | undefined) {
 
 .series-card-path {
     font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: #cbd5e1;
     background-color: #000000;
-    padding: 0.25rem;
+    padding: 0.375rem 0.5rem;
     border-radius: 0.25rem;
     display: block;
+    margin-top: 0.5rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-top: 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
 }
 </style>
