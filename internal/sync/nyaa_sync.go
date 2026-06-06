@@ -8,6 +8,7 @@ import (
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/download"
 	"github.com/mtodorov95/yomarr/internal/indexer"
+	"github.com/mtodorov95/yomarr/internal/models"
 )
 
 type NyaaSyncEngine struct {
@@ -114,7 +115,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 		if bestTorrent != nil {
 			if downloadedTorrents[bestTorrent.InfoHash] {
 				// Already queued
-				ch.Status = "Downloading"
+				ch.Status = models.ChapterDownloading
 				_ = e.ChapterStore.Update(ch)
 				continue
 			}
@@ -137,7 +138,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			}
 
 			downloadedTorrents[bestTorrent.InfoHash] = true
-			ch.Status = "Downloading"
+			ch.Status = models.ChapterDownloading
 			_ = e.ChapterStore.Update(ch)
 		} else {
 			log.Printf("No available candidate on Nyaa matches %s Ch %g (Vol %v)", series.Title, ch.Number, ch.Volume)

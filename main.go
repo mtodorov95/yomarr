@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/mtodorov95/yomarr/internal/api"
 	"github.com/mtodorov95/yomarr/internal/config"
@@ -58,6 +59,11 @@ func main() {
 		log.Printf("Warning: Could not connect to qbittorrent client: %v", err)
 	}
 	// Sync
+	scanner := sync.NewLibraryScanner(chapterStore, seriesStore)
+	if err := scanner.ScanLibrary(); err != nil {
+		log.Printf("[Error] Initial library boot scan failed: %v", err)
+	}
+	scanner.StartBackgroundScan(6 * time.Hour)
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
 	nyaaEngine := sync.NewNyaaSyncEngine(chapterStore, seriesStore, nyaaIndexer, qbClient)
 	if qbClient != nil {

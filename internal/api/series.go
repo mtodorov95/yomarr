@@ -103,7 +103,7 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		s = models.Series{
 			Title:         req.Title,
 			AltTitles:     req.AltTitles,
-			Status:        req.Status,
+			Status:        models.SeriesStatus(req.Status),
 			Path:          req.Path,
 			MangadexID:    db.ToPtr(req.MangadexId),
 			AnilistID:     db.ToPtr(req.AnilistID),

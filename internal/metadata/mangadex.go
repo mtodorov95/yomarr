@@ -74,14 +74,16 @@ func getMDTitle(titleMap mdLocalizedString) string {
 	return "Unknown Title"
 }
 
-func mapMDStatus(status string) string {
+func mapMDStatus(status string) models.SeriesStatus {
 	switch status {
-	case "ongoing":
-		return "Monitored"
+	case "ongoing", "hiatus":
+		return models.SeriesOngoing
 	case "completed":
-		return "Ended"
+		return models.SeriesCompleted
+	case "cancelled":
+		return models.SeriesUnmonitored
 	default:
-		return "Monitored"
+		return models.SeriesOngoing
 	}
 }
 

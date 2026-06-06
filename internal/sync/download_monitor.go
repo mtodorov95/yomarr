@@ -171,7 +171,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 		seriesMap[s.ID] = s
 	}
 
-	allChapters, err := m.ChapterStore.GetByStatus("Downloading")
+	allChapters, err := m.ChapterStore.GetByStatus(string(models.ChapterDownloading))
 	if err != nil {
 		return err
 	}
@@ -204,9 +204,9 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 
 					for i := range allChapters {
 						ch := &allChapters[i]
-						if ch.SeriesID == series.ID && ch.Status == "Downloading" {
+						if ch.SeriesID == series.ID && ch.Status == models.ChapterDownloading {
 
-							ch.Status = "Downloaded"
+							ch.Status = models.ChapterDownloaded
 							ch.FilePath = &finalLibraryPath
 
 							if err := m.ChapterStore.Update(ch); err != nil {
@@ -255,7 +255,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 					continue
 				}
 
-				ch.Status = "Downloaded"
+				ch.Status = models.ChapterDownloaded
 				ch.FilePath = &finalLibraryPath
 
 				if err := m.ChapterStore.Update(ch); err != nil {

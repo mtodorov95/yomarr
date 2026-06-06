@@ -38,6 +38,19 @@ query ($search: String) {
   }
 }`
 
+func mapAnilistStatus(apiStatus string) models.SeriesStatus {
+	switch apiStatus {
+	case "FINISHED":
+		return models.SeriesCompleted
+	case "RELEASING", "HIATUS":
+		return models.SeriesOngoing
+	case "NOT_YET_RELEASED", "CANCELLED":
+		return models.SeriesUnmonitored
+	default:
+		return models.SeriesUnmonitored
+	}
+}
+
 func (p *AnilistProvider) Search(queryStr string) ([]models.Series, error) {
 	payload := map[string]any{
 		"query": searchQuery,
@@ -84,7 +97,7 @@ func (p *AnilistProvider) Search(queryStr string) ([]models.Series, error) {
 		results = append(results, models.Series{
 			AnilistID: db.ToPtr(fmt.Sprintf("%d", m.ID)),
 			Title:     title,
-			Status:    m.Status,
+			Status:    mapAnilistStatus(m.Status),
 		})
 	}
 
@@ -140,7 +153,7 @@ func (p *AnilistProvider) GetDetails(id string) (*models.Series, error) {
 	return &models.Series{
 		AnilistID: db.ToPtr(fmt.Sprintf("%d", data.Data.Media.ID)),
 		Title:     title,
-		Status:    data.Data.Media.Status,
+		Status:    mapAnilistStatus(data.Data.Media.Status),
 		TotalChapters: rawCount,
 	}, nil
 }
