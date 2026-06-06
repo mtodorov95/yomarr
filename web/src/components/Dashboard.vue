@@ -3,9 +3,10 @@ import { ref, onMounted } from 'vue'
 import type { Series } from '../types'
 import SeriesList from './SeriesList.vue'
 import SeriesDetail from './SeriesDetail.vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const series = ref<Series[]>([])
-const selectedSeries = ref<Series | null>(null)
 const loading = ref(true)
 
 async function fetchSeries() {
@@ -37,29 +38,71 @@ async function removeSeries(id: number) {
     }
 }
 
+function handleSelect(s: Series) {
+    router.push({ name: "series-detail", params: { id: s.id } })
+}
+
 onMounted(fetchSeries)
 </script>
 
 <template>
-    <div class="w-full max-w-4xl">
-        <template v-if="selectedSeries">
-            <SeriesDetail :series="selectedSeries" @back="selectedSeries = null" />
-        </template>
+    <div class="dashboard-wrapper">
+        <div class="dashboard-header">
+            <h2 class="header-title">Library</h2>
+            <button @click="fetchSeries" class="refresh-button">Refresh</button>
+        </div>
+
+        <div v-if="loading" class="info-message">Loading library...</div>
 
         <template v-else>
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold">Library</h2>
-                <button @click="fetchSeries"
-                    class="text-sm bg-slate-800 px-3 py-1 rounded border border-slate-700">Refresh</button>
+            <SeriesList v-if="series.length > 0" :seriesList="series" @delete="removeSeries" @select="handleSelect" />
+            <div v-else class="info-message status-empty">
+                Library empty. Search and import series.
             </div>
-
-            <div v-if="loading" class="text-slate-500">Loading library...</div>
-
-            <template v-else>
-                <SeriesList v-if="series.length > 0" :seriesList="series" @delete="removeSeries"
-                    @select="s => selectedSeries = s" />
-                <div v-else class="text-slate-500 italic">Library empty. Search and import series.</div>
-            </template>
         </template>
     </div>
 </template>
+
+<style scoped>
+.dashboard-wrapper {
+    width: 100%;
+    max-width: 56rem;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.refresh-button {
+    font-size: 0.875rem;
+    background-color: #1e293b;
+    color: #ffffff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    border: 1px solid #334155;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.refresh-button:hover {
+    background-color: #334155;
+    border-color: #475569;
+}
+
+.info-message {
+    color: #64748b;
+}
+
+.status-empty {
+    font-style: italic;
+}
+</style>
