@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/download"
@@ -68,6 +69,11 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 	downloadedTorrents := make(map[string]bool)
 
 	for _, ch := range missing {
+		expectedLang := ch.Language
+		if expectedLang == "" {
+			expectedLang = "en"
+		}
+
 		var bestTorrent *indexer.NyaaResult
 		maxSeeders := -1
 
@@ -114,24 +120,21 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 
 		if bestTorrent != nil {
 			if downloadedTorrents[bestTorrent.InfoHash] {
-				// Already queued
 				ch.Status = models.ChapterDownloading
 				_ = e.ChapterStore.Update(ch)
 				continue
 			}
 
 			targetPath := getDownloadsPath()
-
-			log.Printf("Preparing download folder on disk: %s", targetPath)
-
 			err := os.MkdirAll(targetPath, 0755)
 			if err != nil {
 				log.Printf("Failed to create local directory %s: %v", targetPath, err)
 			}
 
-			log.Printf("Found optimal release for %s Ch %g -> %s (Seeds: %d)", series.Title, ch.Number, bestTorrent.Title, bestTorrent.Seeders)
+			log.Printf("Found optimal release for %s Ch %g [%s] -> %s (Seeds: %d)",
+				series.Title, ch.Number, expectedLang, bestTorrent.Title, bestTorrent.Seeders)
 
-			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath)
+			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath, 48*time.Hour, expectedLang)
 			if err != nil {
 				log.Printf("Failed to dispatch torrent to client: %v", err)
 				continue
@@ -141,7 +144,8 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			ch.Status = models.ChapterDownloading
 			_ = e.ChapterStore.Update(ch)
 		} else {
-			log.Printf("No available candidate on Nyaa matches %s Ch %g (Vol %v)", series.Title, ch.Number, ch.Volume)
+			log.Printf("No available candidate on Nyaa matches %s Ch %g for language [%s]",
+				series.Title, ch.Number, expectedLang)
 		}
 	}
 

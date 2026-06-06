@@ -21,6 +21,9 @@ var (
 	
 	// Matches volumes: "Vol.02", "v03", "Volume 4", "v01-05"
 	volRegex      = regexp.MustCompile(`(?i)(?:vol(?:ume)?\.?\s*|v)(\d+)(?:\s*-\s*(\d+))?`)
+
+	// Matches Japanese volume syntax variants like "第02巻", "第 2 巻", "第02-04巻"
+	volJaRegex = regexp.MustCompile(`(?i)第\s*(\d+)\s*(?:-\s*(\d+)\s*)?巻`)
 )
 
 type ReleaseType string
@@ -42,6 +45,15 @@ func ParseTorrentTitle(title string) (ParsedRelease, bool) {
 	}
 
 	cleanedTitle := yearRangeRegex.ReplaceAllString(title, " ")
+
+	if jaVolMatches := volJaRegex.FindStringSubmatch(cleanedTitle); len(jaVolMatches) > 1 {
+		start, _ := strconv.ParseFloat(jaVolMatches[1], 64)
+		if jaVolMatches[2] != "" {
+			end, _ := strconv.ParseFloat(jaVolMatches[2], 64)
+			return ParsedRelease{Type: TypeVolume, StartNum: start, EndNum: end}, true
+		}
+		return ParsedRelease{Type: TypeVolume, StartNum: start, EndNum: start}, true
+	}
 
 	if volMatches := volRegex.FindStringSubmatch(cleanedTitle); len(volMatches) > 1 {
 		start, _ := strconv.ParseFloat(volMatches[1], 64)

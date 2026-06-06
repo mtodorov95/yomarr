@@ -3,13 +3,26 @@ import { ref, onMounted } from 'vue'
 import type { Series, Chapter } from '../types'
 import { useToast } from '@/composables/useToast';
 
+interface LanguageVariant {
+    id: number
+    status: string
+    language: string
+    file_path?: string
+}
+
+interface GroupedChapter {
+    number: number
+    volume: number | null
+    variants: LanguageVariant[]
+}
+
 const props = defineProps<{
     id: string
 }>()
 
 const toast = useToast();
 const series = ref<Series | null>(null)
-const chapters = ref<Chapter[]>([])
+const groupedChapters = ref<GroupedChapter[]>([])
 const loading = ref(true)
 const searching = ref(false)
 
@@ -26,7 +39,7 @@ async function loadPageData() {
 
         const chaptersRes = await fetch(`/api/chapters?series_id=${seriesId}`)
         if (!chaptersRes.ok) throw new Error('Failed to fetch chapters')
-        chapters.value = await chaptersRes.json()
+        groupedChapters.value = await chaptersRes.json() ?? [];
     } catch (e) {
         console.error(e)
         toast.error("Faield to fetch chapters")
@@ -93,20 +106,18 @@ onMounted(loadPageData)
                 </div>
             </div>
 
-            <div v-if="chapters && chapters.length > 0" class="table-card">
+            <div v-if="groupedChapters && groupedChapters.length > 0" class="table-card">
                 <div class="table-responsive">
                     <table class="manifest-table">
                         <thead>
                             <tr class="table-header-row">
                                 <th class="table-th">Chapter Number</th>
                                 <th class="table-th">Volume</th>
-                                <th class="table-th">Tracking Status</th>
-                                <th class="table-th">Language</th>
-                                <th class="table-th">File Association</th>
+                                <th class="table-th">Available Releases / Language Status</th>
                             </tr>
                         </thead>
                         <tbody class="table-body">
-                            <tr v-for="ch in chapters" :key="ch.id" class="table-row">
+                            <tr v-for="ch in groupedChapters" :key="ch.number" class="table-row">
                                 <td class="table-td td-chapter">
                                     Chapter {{ ch.number }}
                                 </td>
@@ -114,15 +125,18 @@ onMounted(loadPageData)
                                     {{ ch.volume !== null && ch.volume !== undefined ? `Vol. ${ch.volume}` : '—' }}
                                 </td>
                                 <td class="table-td">
-                                    <span :class="['status-badge', ch.status === 'Downloaded' ? 'badge-downloaded' : 'badge-missing']">
-                                        {{ ch.status }}
-                                    </span>
-                                </td>
-                                <td class="table-td td-meta">
-                                    {{ ch.language || '—' }}
-                                </td>
-                                <td class="table-td td-meta">
-                                    {{ ch.file_path || '—' }}
+                                    <div class="variant-badge-stack">
+                                        <div 
+                                            v-for="v in ch.variants" 
+                                            :key="v.id"
+                                            class="variant-wrapper"
+                                            :title="v.file_path || 'No file registered'"
+                                        >
+                                            <span :class="['status-badge', v.status === 'Downloaded' ? 'badge-downloaded' : 'badge-missing']">
+                                                <span class="lang-token">{{ v.language }}:</span> {{ v.status }}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -317,15 +331,34 @@ onMounted(loadPageData)
     font-weight: 400;
 }
 
+/* Flex layout handles the horizontal row positioning cleanly */
+.variant-badge-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.variant-wrapper {
+    display: inline-flex;
+}
+
 .status-badge {
-    padding: 0.125rem 0.625rem;
+    padding: 0.25rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 700;
-    border-radius: 9999px;
+    border-radius: 0.5rem;
     border: 1px solid transparent;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.025em;
     text-transform: uppercase;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.lang-token {
+    opacity: 0.8;
+    font-weight: 900;
 }
 
 .badge-downloaded {
@@ -338,16 +371,6 @@ onMounted(loadPageData)
     background-color: rgba(239, 68, 68, 0.1);
     color: #f87171;
     border-color: rgba(239, 68, 68, 0.2);
-}
-
-.td-meta {
-    font-size: 0.75rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    color: #94a3b8;
-    max-width: 300px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .empty-state {

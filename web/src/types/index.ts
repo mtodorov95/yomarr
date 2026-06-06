@@ -24,3 +24,19 @@ export interface Chapter {
   release_date?: string | null;
   language: string;
 }
+
+export interface TorrentVariant {
+  title: string
+  link: string
+  seeders: number
+  leechers: number
+  size: string
+  info_hash: string
+}
+
+export interface ChapterGroup {
+  chapter_number: number
+  volume?: number
+  english: TorrentVariant[]
+  raws: TorrentVariant[]
+}

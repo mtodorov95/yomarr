@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,13 +15,13 @@ import (
 
 type LibraryScanner struct {
 	ChapterStore db.ChapterStore
-	SeriesStore db.SeriesStore
+	SeriesStore  db.SeriesStore
 }
 
 func NewLibraryScanner(cs db.ChapterStore, ss db.SeriesStore) *LibraryScanner {
 	return &LibraryScanner{
 		ChapterStore: cs,
-		SeriesStore: ss,
+		SeriesStore:  ss,
 	}
 }
 
@@ -80,7 +81,6 @@ func (ls *LibraryScanner) ScanLibrary() error {
 	return nil
 }
 
-
 func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath string) error {
 	log.Printf("[Scanner] Starting sync for: %s", series.Title)
 
@@ -89,91 +89,113 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 		return err
 	}
 
-	chapterMap := make(map[float64]*models.Chapters)
+	chapterMap := make(map[string]*models.Chapters)
 	for i := range dbChapters {
-		chapterMap[dbChapters[i].Number] = &dbChapters[i]
+		lang := strings.ToLower(dbChapters[i].Language)
+		if lang == "" {
+			lang = "en"
+		}
+		key := fmt.Sprintf("%g_%s", dbChapters[i].Number, lang)
+		chapterMap[key] = &dbChapters[i]
 	}
 
-	files, err := os.ReadDir(folderPath)
-	if err != nil {
-		return err
-	}
+	foundOnDisk := make(map[string]bool)
+	languages := []string{"en", "raw"}
 
-	foundOnDisk := make(map[float64]bool)
+	for _, lang := range languages {
+		subFolderPath := filepath.Join(folderPath, strings.ToUpper(lang))
+		files, err := os.ReadDir(subFolderPath)
 
-	for _, file := range files {
-		fileName := file.Name()
-		if strings.HasPrefix(fileName, ".") {
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			log.Printf("[Scanner Error] Failed to read subfolder %s: %v", subFolderPath, err)
 			continue
 		}
 
-		parsed, ok := indexer.ParseTorrentTitle(fileName)
-		if !ok {
-			continue
-		}
+		for _, file := range files {
+			fileName := file.Name()
+			if strings.HasPrefix(fileName, ".") {
+				continue
+			}
 
-		start := parsed.StartNum
-		end := parsed.StartNum
-		if parsed.Type == indexer.TypeRange {
-			end = parsed.EndNum
-		}
-		currentPath := filepath.Join(folderPath, fileName)
+			parsed, ok := indexer.ParseTorrentTitle(fileName)
+			if !ok {
+				continue
+			}
 
-		if parsed.Type == indexer.TypeVolume {
-			for volNum := start; volNum <= end; volNum++ {
-				for i := range dbChapters {
-					ch := &dbChapters[i]
-					if ch.Volume != nil && float64(*ch.Volume) == volNum {
-						foundOnDisk[ch.Number] = true
-						if ch.Status != models.ChapterDownloaded {
-							ch.Status = models.ChapterDownloaded
-							ch.FilePath = &currentPath
-							if err := ls.ChapterStore.Update(ch); err != nil {
-								log.Printf("[Scanner Error] Fail update Ch %g via volume: %v", ch.Number, err)
+			start := parsed.StartNum
+			end := parsed.StartNum
+			if parsed.Type == indexer.TypeRange {
+				end = parsed.EndNum
+			}
+			currentPath := filepath.Join(subFolderPath, fileName)
+
+			if parsed.Type == indexer.TypeVolume {
+				for volNum := start; volNum <= end; volNum++ {
+					for i := range dbChapters {
+						ch := &dbChapters[i]
+						chLang := strings.ToLower(ch.Language)
+						if chLang == "" {
+							chLang = "en"
+						}
+
+						if ch.Volume != nil && float64(*ch.Volume) == volNum && chLang == lang {
+							diskKey := fmt.Sprintf("%g_%s", ch.Number, lang)
+							foundOnDisk[diskKey] = true
+							if ch.Status != models.ChapterDownloaded {
+								ch.Status = models.ChapterDownloaded
+								ch.FilePath = &currentPath
+								if err := ls.ChapterStore.Update(ch); err != nil {
+									log.Printf("[Scanner Error] Fail update Ch %g via volume: %v", ch.Number, err)
+								}
 							}
 						}
 					}
 				}
+				continue
 			}
-			continue
-		}
 
-		for num := start; num <= end; num++ {
-			foundOnDisk[num] = true
+			for num := start; num <= end; num++ {
+				diskKey := fmt.Sprintf("%g_%s", num, lang)
+				foundOnDisk[diskKey] = true
 
-			ch, exists := chapterMap[num]
-			if !exists {
-				newCh := models.Chapters{
-					SeriesID: series.ID,
-					Number: num,
-					Status: models.ChapterDownloaded,
-					FilePath: &currentPath,
-				}
+				ch, exists := chapterMap[diskKey]
+				if !exists {
+					newCh := models.Chapters{
+						SeriesID: series.ID,
+						Number:   num,
+						Status:   models.ChapterDownloaded,
+						FilePath: &currentPath,
+					}
 
-				if err := ls.ChapterStore.Insert(&newCh); err != nil {
-					log.Printf("[Scanner Error] Failed insert Ch %g: %v", num, err)
+					if err := ls.ChapterStore.Insert(&newCh); err != nil {
+						log.Printf("[Scanner Error] Failed insert Ch %g: %v", num, err)
+					} else {
+						log.Printf("[Scanner] Created missing row for Ch %g", num)
+					}
 				} else {
-					log.Printf("[Scanner] Created missing row for Ch %g", num)
-				}
-			} else {
-				if ch.Status != models.ChapterDownloaded {
-					ch.Status = models.ChapterDownloaded
-					ch.FilePath = &currentPath
-					if err := ls.ChapterStore.Update(ch); err != nil {
-						log.Printf("[Scanner Error] Failed update status Ch %g: %v", num, err)
+					if ch.Status != models.ChapterDownloaded {
+						ch.Status = models.ChapterDownloaded
+						ch.FilePath = &currentPath
+						if err := ls.ChapterStore.Update(ch); err != nil {
+							log.Printf("[Scanner Error] Failed update status Ch %g: %v", num, err)
+						}
 					}
 				}
 			}
 		}
+
 	}
 
-	for num, ch := range chapterMap {
-		if ch.Status == models.ChapterDownloaded && !foundOnDisk[num] {
-			log.Printf("[Scanner] Chapter %g marked Downloaded but file missing! Reverting status", num)
+	for key, ch := range chapterMap {
+		if ch.Status == models.ChapterDownloaded && !foundOnDisk[key] {
+			log.Printf("[Scanner] Chapter %g [%s] marked Downloaded but file missing! Reverting status", ch.Number, ch.Language)
 			ch.Status = models.ChapterMissing
 			ch.FilePath = nil
 			if err := ls.ChapterStore.Update(ch); err != nil {
-				log.Printf("[Scanner Error] Failed revert status Ch %g: %v", num, err)
+				log.Printf("[Scanner Error] Failed revert status Ch %g [%s]: %v", ch.Number, ch.Language, err)
 			}
 		}
 	}

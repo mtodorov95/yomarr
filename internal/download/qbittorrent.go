@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -58,13 +59,23 @@ func (q *QBittorrentClient) login() error {
 	return nil
 }
 
-func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string) error {
+func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string, seedDuration time.Duration, language string) error {
 	addURL := fmt.Sprintf("%s/api/v2/torrents/add", q.BaseURL)
-	
+		
+	minutesToSeed := int(seedDuration.Minutes())
+
+	langTag := strings.ToLower(language)
+	if langTag == "" {
+		langTag = "en"
+	}
+
 	data := url.Values{}
 	data.Set("urls", torrentURL)
 	data.Set("savepath", savePath)
 	data.Set("category", "yomarr")
+	data.Set("tags", langTag)
+	data.Set("ratioLimit", "-2")
+	data.Set("seedingTimeLimit", strconv.Itoa(minutesToSeed))
 
 	resp, err := q.Client.PostForm(addURL, data)
 	if err != nil {
@@ -79,6 +90,6 @@ func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string
 	return nil
 }
 
-func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string) error {
-	return q.AddTorrentFromURL(magnet, savePath) 
+func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string, seedDuration time.Duration, language string) error {
+	return q.AddTorrentFromURL(magnet, savePath, seedDuration, language) 
 }

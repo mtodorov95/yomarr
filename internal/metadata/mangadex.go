@@ -3,6 +3,7 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 
@@ -59,16 +60,33 @@ type ExtChapter struct {
 	Language string
 }
 
-func getMDTitle(titleMap mdLocalizedString) string {
+func getMDTitle(titleMap mdLocalizedString, altTitles []mdLocalizedString) string {
 	if t, ok := titleMap["ja"]; ok && t != "" {
 		return t
 	}
+	if t, ok := titleMap["ja-ro"]; ok && t != "" {
+		return t
+	}
+
 	if t, ok := titleMap["en"]; ok && t != "" {
 		return t
 	}
+	for _, alt := range altTitles {
+		if t, ok := alt["en"]; ok && t != "" {
+			return t
+		}
+	}
+
 	for _, t := range titleMap {
 		if t != "" {
 			return t
+		}
+	}
+	for _, alt := range altTitles {
+		for _, t := range alt {
+			if t != "" {
+				return t
+			}
 		}
 	}
 	return "Unknown Title"
@@ -124,14 +142,16 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 
 		var fallbacks []string
 		for _, alt := range item.Attributes.AltTitles {
-			if enTitle, ok := alt["en"]; ok && enTitle != "" {
-				fallbacks = append(fallbacks, enTitle)
+			for _, altTitle := range alt {
+				if altTitle != "" {
+					fallbacks = append(fallbacks, altTitle)
+				}
 			}
 		}
 
 		results = append(results, models.Series{
 			MangadexID: &mdID,
-			Title:      getMDTitle(item.Attributes.Title),
+			Title:      getMDTitle(item.Attributes.Title, item.Attributes.AltTitles),
 			AltTitles:  fallbacks,
 			Status:     mapMDStatus(item.Attributes.Status),
 			AnilistID:  alIDPtr,
@@ -166,8 +186,10 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 
 	var fallbacks []string
 	for _, alt := range res.Data.Attributes.AltTitles {
-		if enTitle, ok := alt["en"]; ok && enTitle != "" {
-			fallbacks = append(fallbacks, enTitle)
+		for _, altTitle := range alt {
+			if altTitle != "" {
+				fallbacks = append(fallbacks, altTitle)
+			}
 		}
 	}
 
@@ -175,7 +197,7 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		MangadexID: &mdID,
 		AnilistID:  alIDPtr,
 		AltTitles:  fallbacks,
-		Title:      getMDTitle(res.Data.Attributes.Title),
+		Title:      getMDTitle(res.Data.Attributes.Title, res.Data.Attributes.AltTitles),
 		Status:     mapMDStatus(res.Data.Attributes.Status),
 	}, nil
 }
@@ -188,7 +210,6 @@ func (p *MangaDexProvider) GetChapterFeed(mangadexID string) ([]ExtChapter, erro
 	}
 
 	q := req.URL.Query()
-	q.Add("translatedLanguage[]", "en")
 	q.Add("limit", "500")
 	q.Add("order[chapter]", "asc")
 	req.URL.RawQuery = q.Encode()

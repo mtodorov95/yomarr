@@ -8,8 +8,11 @@ import ConfirmationModal from './ConfirmationModal.vue'
 
 const router = useRouter()
 const toast = useToast()
+
 const series = ref<Series[]>([])
 const loading = ref(true)
+const scanning = ref(false)
+
 const isModalOpen = ref(false)
 const seriesToDelete = ref<number | null>(null)
 
@@ -63,6 +66,24 @@ function handleSelect(s: Series) {
     router.push({ name: "series-detail", params: { id: s.id } })
 }
 
+async function runLibraryScan() {
+    scanning.value = true
+    try {
+        const res = await fetch("/api/library/scan", {method: "POST"})
+        if (res.ok) {
+            toast.success("Manual library scan initiated in background")
+            await fetchSeries()
+        } else {
+            toast.error("Failed to start library scan")
+        }
+    } catch (e) {
+        console.error(e)
+        toast.error("Network error trying to start library scan")
+    } finally {
+        scanning.value = false;
+    }
+}
+
 onMounted(fetchSeries)
 </script>
 
@@ -70,7 +91,22 @@ onMounted(fetchSeries)
     <div class="dashboard-wrapper">
         <div class="dashboard-header">
             <h2 class="header-title">Library</h2>
-            <button @click="fetchSeries" class="refresh-button">Refresh</button>
+            <div class="header-actions">
+                <button 
+                    @click="runLibraryScan" 
+                    :disabled="scanning || loading" 
+                    class="scan-button"
+                >
+                    {{ scanning ? 'Scanning...' : 'Scan Library' }}
+                </button>
+                <button 
+                    @click="fetchSeries" 
+                    :disabled="loading" 
+                    class="refresh-button"
+                >
+                    Refresh
+                </button>
+            </div>
         </div>
 
         <div v-if="loading" class="info-message">Loading library...</div>
@@ -115,7 +151,12 @@ onMounted(fetchSeries)
     margin: 0;
 }
 
-.refresh-button {
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.refresh-button .scan-button{
     font-size: 0.875rem;
     background-color: #1e293b;
     color: #ffffff;
@@ -126,9 +167,30 @@ onMounted(fetchSeries)
     transition: background-color 0.2s, border-color 0.2s;
 }
 
-.refresh-button:hover {
+.refresh-button {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+}
+
+.refresh-button:hover:not(:disabled) {
     background-color: #334155;
     border-color: #475569;
+}
+
+.scan-button {
+    background-color: #2563eb;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.scan-button:hover:not(:disabled) {
+    background-color: #3b82f6;
+}
+
+.refresh-button:disabled, .scan-button:disabled {
+    background-color: #1e293b;
+    color: #64748b;
+    border-color: transparent;
+    cursor: not-allowed;
 }
 
 .info-message {
