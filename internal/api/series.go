@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/mtodorov95/yomarr/internal/db"
+	"github.com/mtodorov95/yomarr/internal/download"
 	"github.com/mtodorov95/yomarr/internal/metadata"
 	"github.com/mtodorov95/yomarr/internal/models"
 	"github.com/mtodorov95/yomarr/internal/sync"
@@ -108,6 +109,22 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 			MangadexID:    db.ToPtr(req.MangadexId),
 			AnilistID:     db.ToPtr(req.AnilistID),
 			TotalChapters: req.TotalChapters,
+		}
+	}
+
+	if s.Path != "" && (s.Thumbnail != "" || len(s.HistoricalCovers) > 0) {
+		log.Printf("[API] Downloading remote imagery locally into: %s/Covers", s.Path)
+		localThumb, localHists, err := download.DownloadSeriesCovers(
+			http.DefaultClient,
+			s.Path,
+			s.Thumbnail,
+			s.HistoricalCovers,
+		)
+		if err != nil {
+			log.Printf("[API Warning] Cover sync incomplete: %v", err)
+		} else {
+			s.Thumbnail = localThumb
+			s.HistoricalCovers = localHists
 		}
 	}
 

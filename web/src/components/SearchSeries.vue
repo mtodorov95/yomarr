@@ -33,7 +33,7 @@ async function search() {
 
 <template>
   <div class="search-container">
-    <h2 class="search-title">Search AniList</h2>
+    <h2 class="search-title">Search for Manga</h2>
     <div class="search-box">
       <input 
         v-model="query" 

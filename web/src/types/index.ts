@@ -12,6 +12,8 @@ export interface Series {
   path: string;
   localPath?: string;
   total_chapters?: number;
+  thumbnail?: string;
+  historical_covers: string[];
 }
 
 export interface Chapter {

@@ -5,14 +5,16 @@ import (
 )
 
 type Series struct {
-	ID            int64        `json:"id"`
-	AnilistID     *string      `json:"anilist_id"`
-	MangadexID    *string      `json:"mangadex_id"`
-	Title         string       `json:"title"`
-	AltTitles     []string     `json:"alt_titles"`
-	Path          string       `json:"path"`
-	Status        SeriesStatus `json:"status"`
-	TotalChapters int          `json:"total_chapters"`
+	ID               int64        `json:"id"`
+	AnilistID        *string      `json:"anilist_id"`
+	MangadexID       *string      `json:"mangadex_id"`
+	Title            string       `json:"title"`
+	AltTitles        []string     `json:"alt_titles"`
+	Path             string       `json:"path"`
+	Status           SeriesStatus `json:"status"`
+	TotalChapters    int          `json:"total_chapters"`
+	Thumbnail        string       `json:"thumbnail"`
+	HistoricalCovers []string     `json:"historical_covers"`
 }
 
 type Chapters struct {

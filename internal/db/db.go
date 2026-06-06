@@ -34,7 +34,9 @@ func createTables() {
 		alt_titles TEXT DEFAULT '[]',
 		path TEXT NOT NULL,
 		status TEXT,
-		total_chapters INTEGER DEFAULT 0
+		total_chapters INTEGER DEFAULT 0,
+		thumbnail TEXT DEFAULT '',
+		historical_covers TEXT DEFAULT '[]'
 	);
 
 	CREATE TABLE IF NOT EXISTS chapters (

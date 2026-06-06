@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/mtodorov95/yomarr/internal/models"
 )
@@ -16,6 +17,12 @@ type MangaDexProvider struct {
 
 type mdLocalizedString map[string]string
 
+type mdRelationship struct {
+	ID         string         `json:"id"`
+	Type       string         `json:"type"`
+	Attributes map[string]any `json:"attributes,omitempty"`
+}
+
 type mdMangaAttributes struct {
 	Title     mdLocalizedString   `json:"title"`
 	AltTitles []mdLocalizedString `json:"altTitles"`
@@ -24,8 +31,9 @@ type mdMangaAttributes struct {
 }
 
 type mdMangaData struct {
-	ID         string            `json:"id"`
-	Attributes mdMangaAttributes `json:"attributes"`
+	ID            string            `json:"id"`
+	Attributes    mdMangaAttributes `json:"attributes"`
+	Relationships []mdRelationship  `json:"relationships"`
 }
 
 type mdSearchResponse struct {
@@ -50,7 +58,10 @@ type mdChapterData struct {
 }
 
 type mdFeedResponse struct {
-	Data []mdChapterData `json:"data"`
+	Data   []mdChapterData `json:"data"`
+	Limit  int             `json:"limit"`
+	Offset int             `json:"offset"`
+	Total  int             `json:"total"`
 }
 
 type ExtChapter struct {
@@ -105,6 +116,50 @@ func mapMDStatus(status string) models.SeriesStatus {
 	}
 }
 
+func (p *MangaDexProvider) fetchAllCovers(mangaID string) (string, []string, error) {
+	apiURL := fmt.Sprintf("https://api.mangadex.org/cover?manga[]=%s&limit=100", url.QueryEscape(mangaID))
+	resp, err := p.Client.Get(apiURL)
+	if err != nil {
+		return "", nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, fmt.Errorf("failed fetching covers, status: %d", resp.StatusCode)
+	}
+
+	var coverRes struct {
+		Data []struct {
+			Attributes struct {
+				FileName string `json:"fileName"`
+				Volume   string `json:"volume"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&coverRes); err != nil {
+		return "", nil, err
+	}
+
+	var primaryCover string
+	var historicalCovers []string
+
+	for _, c := range coverRes.Data {
+		coverURL := fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s", mangaID, c.Attributes.FileName)
+
+		if c.Attributes.Volume == "1" || c.Attributes.Volume == "" {
+			primaryCover = coverURL
+		}
+		historicalCovers = append(historicalCovers, coverURL)
+	}
+
+	if primaryCover == "" && len(historicalCovers) > 0 {
+		primaryCover = historicalCovers[0]
+	}
+
+	return primaryCover, historicalCovers, nil
+}
+
 func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 	apiURL := "https://api.mangadex.org/manga"
 	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
@@ -115,6 +170,7 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 	q := req.URL.Query()
 	q.Add("title", query)
 	q.Add("limit", "10")
+	q.Add("includes[]", "cover_art")
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := p.Client.Do(req)
@@ -149,12 +205,23 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			}
 		}
 
+		var primaryCover string
+		for _, rel := range item.Relationships {
+			if rel.Type == "cover_art" {
+				if filename, ok := rel.Attributes["fileName"].(string); ok {
+					primaryCover = fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s", mdID, filename)
+				}
+			}
+		}
+
 		results = append(results, models.Series{
 			MangadexID: &mdID,
 			Title:      getMDTitle(item.Attributes.Title, item.Attributes.AltTitles),
 			AltTitles:  fallbacks,
 			Status:     mapMDStatus(item.Attributes.Status),
 			AnilistID:  alIDPtr,
+			Thumbnail:  primaryCover,
+			HistoricalCovers: make([]string, 0),
 		})
 	}
 
@@ -193,60 +260,80 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		}
 	}
 
+	thumbnail, historical, err := p.fetchAllCovers(mdID)
+	if err != nil {
+		log.Printf("[Metadata Warning] Failed retrieving covers for %s: %v", mdID, err)
+	}
+
 	return &models.Series{
-		MangadexID: &mdID,
-		AnilistID:  alIDPtr,
-		AltTitles:  fallbacks,
-		Title:      getMDTitle(res.Data.Attributes.Title, res.Data.Attributes.AltTitles),
-		Status:     mapMDStatus(res.Data.Attributes.Status),
+		MangadexID:       &mdID,
+		AnilistID:        alIDPtr,
+		AltTitles:        fallbacks,
+		Title:            getMDTitle(res.Data.Attributes.Title, res.Data.Attributes.AltTitles),
+		Status:           mapMDStatus(res.Data.Attributes.Status),
+		Thumbnail:        thumbnail,
+		HistoricalCovers: historical,
 	}, nil
 }
 
 func (p *MangaDexProvider) GetChapterFeed(mangadexID string) ([]ExtChapter, error) {
-	apiURL := fmt.Sprintf("https://api.mangadex.org/manga/%s/feed", url.PathEscape(mangadexID))
-	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	q := req.URL.Query()
-	q.Add("limit", "500")
-	q.Add("order[chapter]", "asc")
-	req.URL.RawQuery = q.Encode()
-
-	resp, err := p.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("mangadex returned status: %d", resp.StatusCode)
-	}
-
-	var feed mdFeedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&feed); err != nil {
-		return nil, err
-	}
-
 	var list []ExtChapter
-	for _, ch := range feed.Data {
-		if ch.Attributes.Chapter == "" {
-			continue
+	offset := 0
+	limit := 500
+
+	for {
+		apiURL := fmt.Sprintf("https://api.mangadex.org/manga/%s/feed", url.PathEscape(mangadexID))
+		req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+		if err != nil {
+			return nil, err
 		}
 
-		var num float64
-		if _, err := fmt.Sscanf(ch.Attributes.Chapter, "%f", &num); err != nil {
-			continue
+		q := req.URL.Query()
+		q.Add("limit", strconv.Itoa(limit))
+		q.Add("offset", strconv.Itoa(offset))
+		q.Add("order[chapter]", "asc")
+		req.URL.RawQuery = q.Encode()
+
+		resp, err := p.Client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("mangadex returned status: %d", resp.StatusCode)
 		}
 
-		list = append(list, ExtChapter{
-			Number:   num,
-			Volume:   ch.Attributes.Volume,
-			Title:    ch.Attributes.Title,
-			Language: ch.Attributes.TranslatedLanguage,
-		})
+		var feed mdFeedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&feed); err != nil {
+			return nil, err
+		}
+
+		for _, ch := range feed.Data {
+			if ch.Attributes.Chapter == "" {
+				continue
+			}
+
+			var num float64
+			if _, err := fmt.Sscanf(ch.Attributes.Chapter, "%f", &num); err != nil {
+				continue
+			}
+
+			list = append(list, ExtChapter{
+				Number:   num,
+				Volume:   ch.Attributes.Volume,
+				Title:    ch.Attributes.Title,
+				Language: ch.Attributes.TranslatedLanguage,
+			})
+		}
+
+		if offset+len(feed.Data) >= feed.Total || len(feed.Data) == 0 {
+			break
+		}
+
+		offset += limit
 	}
 
+	log.Printf("[Metadata Feed] Successfully aggregated complete chapter skeleton tracking array. Total size: %d", len(list))
 	return list, nil
 }

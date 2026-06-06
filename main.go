@@ -95,6 +95,10 @@ func main() {
 	libraryHandler := api.NewLibraryHandler(scanner)
 	mux.HandleFunc("/api/library/scan", libraryHandler.ScanLibrary)
 
+	// Assets
+	mux.HandleFunc("/api/proxy-cover", api.ProxyCoverHandler)
+	mux.HandleFunc("/api/assets", api.FileAssetHandler)
+
 	// Static
 	dist, err := fs.Sub(webAssets, "web/dist")
 	if err != nil {
