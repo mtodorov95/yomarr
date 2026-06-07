@@ -69,11 +69,6 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 	downloadedTorrents := make(map[string]bool)
 
 	for _, ch := range missing {
-		expectedLang := ch.Language
-		if expectedLang == "" {
-			expectedLang = "en"
-		}
-
 		var bestTorrent *indexer.NyaaResult
 		maxSeeders := -1
 
@@ -132,9 +127,9 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			}
 
 			log.Printf("Found optimal release for %s Ch %g [%s] -> %s (Seeds: %d)",
-				series.Title, ch.Number, expectedLang, bestTorrent.Title, bestTorrent.Seeders)
+				series.Title, ch.Number, bestTorrent.Language, bestTorrent.Title, bestTorrent.Seeders)
 
-			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath, 48*time.Hour, expectedLang)
+			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath, 48*time.Hour, bestTorrent.Language)
 			if err != nil {
 				log.Printf("Failed to dispatch torrent to client: %v", err)
 				continue
@@ -145,7 +140,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			_ = e.ChapterStore.Update(ch)
 		} else {
 			log.Printf("No available candidate on Nyaa matches %s Ch %g for language [%s]",
-				series.Title, ch.Number, expectedLang)
+				series.Title, ch.Number, ch.Language)
 		}
 	}
 

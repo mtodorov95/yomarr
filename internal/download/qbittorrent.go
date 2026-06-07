@@ -93,3 +93,23 @@ func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string
 func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string, seedDuration time.Duration, language string) error {
 	return q.AddTorrentFromURL(magnet, savePath, seedDuration, language) 
 }
+
+func (q *QBittorrentClient) AddTorrentTags(hash string, tags string) error {
+	addTagsURL := fmt.Sprintf("%s/api/v2/torrents/addTags", q.BaseURL)
+
+	data := url.Values{}
+	data.Set("hashes", hash)
+	data.Set("tags", tags)
+
+	resp, err := q.Client.PostForm(addTagsURL, data)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to add tags to torrent %s, code: %d", hash, resp.StatusCode)
+	}
+
+	return nil
+}

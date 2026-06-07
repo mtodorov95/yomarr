@@ -17,11 +17,12 @@ import (
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
+const ImportedTag = "imported"
+
 type DownloadMonitor struct {
-	ChapterStore   db.ChapterStore
-	SeriesStore    db.SeriesStore
-	QBClient       *download.QBittorrentClient
-	importedHashes map[string]bool
+	ChapterStore db.ChapterStore
+	SeriesStore  db.SeriesStore
+	QBClient     *download.QBittorrentClient
 }
 
 type QBTorrentInfo struct {
@@ -34,20 +35,35 @@ type QBTorrentInfo struct {
 
 func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, qb *download.QBittorrentClient) *DownloadMonitor {
 	return &DownloadMonitor{
-		ChapterStore:   cs,
-		SeriesStore:    ss,
-		QBClient:       qb,
-		importedHashes: make(map[string]bool),
+		ChapterStore: cs,
+		SeriesStore:  ss,
+		QBClient:     qb,
 	}
 }
 
 func torrentMatchesSeries(torrentNameLower string, series models.Series) bool {
-	if strings.Contains(torrentNameLower, strings.ToLower(series.Title)) {
-		return true
+	normalize := func(s string) string {
+		s = strings.ToLower(s)
+		s = strings.ReplaceAll(s, " ", "")
+		s = strings.ReplaceAll(s, "-", "")
+		s = strings.ReplaceAll(s, "_", "")
+		s = strings.ReplaceAll(s, ".", "")
+		return s
 	}
-	for _, alt := range series.AltTitles {
-		if alt != "" && strings.Contains(torrentNameLower, strings.ToLower(alt)) {
+
+	cleanTorrent := normalize(torrentNameLower)
+
+	if cleanSeries := normalize(series.Title); cleanSeries != "" {
+		if strings.Contains(cleanTorrent, cleanSeries) {
 			return true
+		}
+	}
+
+	for _, alt := range series.AltTitles {
+		if cleanAlt := normalize(alt); cleanAlt != "" {
+			if strings.Contains(cleanTorrent, cleanAlt) {
+				return true
+			}
 		}
 	}
 	return false
@@ -75,35 +91,68 @@ func (m *DownloadMonitor) importToLibrary(seriesTitle string, torrentName string
 		return "", err
 	}
 
-	finalDestPath := filepath.Join(destDir, torrentName)
-
-	log.Printf("[Importer] Moving media asset from %s to permanent library %s", srcPath, finalDestPath)
-
-	err := os.Rename(srcPath, finalDestPath)
+	srcInfo, err := os.Stat(srcPath)
 	if err != nil {
-		log.Printf("[Importer] Direct move failed (cross-device link), falling back to deep file copy...")
-		err = copyFileOrDir(srcPath, finalDestPath)
-		if err != nil {
+		return "", fmt.Errorf("failed to inspect download source: %w", err)
+	}
+
+	if !srcInfo.IsDir() {
+		finalDestPath := filepath.Join(destDir, torrentName)
+		log.Printf("[Importer] Moving single file: %s -> %s", torrentName, finalDestPath)
+		
+		if err := moveOrCopyFile(srcPath, finalDestPath); err != nil {
 			return "", err
 		}
+		return finalDestPath, nil
 	}
 
-	return finalDestPath, nil
-}
+	log.Printf("[Importer] Parsing folder structure for %s...", torrentName)
+	
+	var primaryTrackedPath string
 
-func copyFileOrDir(src string, dest string) error {
-	info, err := os.Stat(src)
+	err = filepath.WalkDir(srcPath, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".cbz" || ext == ".zip" || ext == ".rar" {
+			fileName := filepath.Base(path)
+			finalDestPath := filepath.Join(destDir, fileName)
+
+			log.Printf("[Importer] Found nested archive: %s -> %s", fileName, destDir)
+			if err := moveOrCopyFile(path, finalDestPath); err != nil {
+				return err
+			}
+
+			if primaryTrackedPath == "" {
+				primaryTrackedPath = finalDestPath
+			}
+		}
+		return nil
+	})
+
 	if err != nil {
-		return err
+		return "", fmt.Errorf("error flattening download directory: %w", err)
 	}
 
-	if info.IsDir() {
-		return copyDir(src, dest)
+	if primaryTrackedPath == "" {
+		primaryTrackedPath = destDir
 	}
-	return copyFile(src, dest)
+
+	return primaryTrackedPath, nil
 }
 
-func copyFile(src, dest string) error {
+func moveOrCopyFile(src, dest string) error {
+	err := os.Rename(src, dest)
+	if err == nil {
+		return nil
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -116,27 +165,12 @@ func copyFile(src, dest string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, in)
-	return err
-}
-
-func copyDir(src, dest string) error {
-	entries, err := os.ReadDir(src)
-	if err != nil {
+	if _, err = io.Copy(out, in); err != nil {
 		return err
 	}
 
-	if err := os.MkdirAll(dest, 0755); err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		destPath := filepath.Join(dest, entry.Name())
-		if err := copyFileOrDir(srcPath, destPath); err != nil {
-			return err
-		}
-	}
+	// Clean up original source file after copy success
+	//  return os.Remove(src)
 	return nil
 }
 
@@ -194,24 +228,55 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 	}
 
 	for _, torrent := range torrents {
-		if torrent.Progress != 1.0 || m.importedHashes[torrent.Hash] {
+		if torrent.Progress != 1.0 {
+			continue
+		}
+
+		isAlreadyImported := false
+		torrentLang := "en"
+
+		tagList := strings.Split(torrent.Tags, ",")
+		for _, tag := range tagList {
+			if strings.TrimSpace(tag) == ImportedTag {
+				isAlreadyImported = true
+			}
+			if strings.TrimSpace(tag) == "raw" {
+				torrentLang = "raw"
+			}
+		}
+
+		if isAlreadyImported {
 			continue
 		}
 
 		torrentNameLower := strings.ToLower(torrent.Name)
 		parsed, ok := indexer.ParseTorrentTitle(torrent.Name)
 
-		torrentLang := "en"
-		if strings.Contains(strings.ToLower(torrent.Tags), "raw") {
-			torrentLang = "raw"
-		}
+		isMultiVolumePack := ok && parsed.Type == indexer.TypeVolume && parsed.EndNum > parsed.StartNum
+		isBatchText := strings.Contains(torrentNameLower, "complete") || strings.Contains(torrentNameLower, "digital") || strings.Contains(torrentNameLower, "batch")
 
-		if !ok {
+		if !ok || isMultiVolumePack || isBatchText {
 			for _, series := range allSeries {
-				if torrentMatchesSeries(torrentNameLower, series) &&
-					(strings.Contains(torrentNameLower, "complete") || strings.Contains(torrentNameLower, "digital") || strings.Contains(torrentNameLower, "batch")) {
+				if torrentMatchesSeries(torrentNameLower, series) {
 
-					log.Printf("[Monitor] Full series batch finished for: %s! Processing all chapters...", series.Title)
+					if isMultiVolumePack {
+						hasMatchingVolChapter := false
+						for _, ch := range allChapters {
+							if ch.SeriesID == series.ID && ch.Volume != nil {
+								chVol := float64(*ch.Volume)
+								if chVol >= parsed.StartNum && chVol <= parsed.EndNum {
+									hasMatchingVolChapter = true
+									break
+								}
+							}
+						}
+						if !hasMatchingVolChapter {
+							continue
+						}
+
+					}
+
+					log.Printf("[Monitor] Multi-volume or batch release finished for: %s! Processing library mapping...", series.Title)
 
 					finalLibraryPath, err := m.importToLibrary(series.Title, torrent.Name, torrentLang)
 					if err != nil {
@@ -227,6 +292,13 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 						}
 
 						if ch.SeriesID == series.ID && ch.Status == models.ChapterDownloading && chLang == torrentLang {
+							if isMultiVolumePack && ch.Volume != nil {
+								chVol := float64(*ch.Volume)
+								if chVol < parsed.StartNum || chVol > parsed.EndNum {
+									continue
+								}
+							}
+
 							ch.Status = models.ChapterDownloaded
 							ch.FilePath = &finalLibraryPath
 							if err := m.ChapterStore.Update(ch); err != nil {
@@ -235,13 +307,14 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 						}
 					}
 
-					m.importedHashes[torrent.Hash] = true
+					if err := m.QBClient.AddTorrentTags(torrent.Hash, ImportedTag); err != nil {
+						log.Printf("[Monitor Error] Failed tagging batch torrent %s: %v", torrent.Hash, err)
+					}
 				}
 			}
 			continue
 		}
 
-		torrentImported := false
 		for i := range allChapters {
 			ch := &allChapters[i]
 
@@ -294,12 +367,10 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 					log.Printf("[Monitor Error] Failed updating database for Ch %g: %v", ch.Number, err)
 				}
 
-				torrentImported = true
+				if err := m.QBClient.AddTorrentTags(torrent.Hash, ImportedTag); err != nil {
+					log.Printf("[Monitor Error] Failed tagging single/volume torrent %s: %v", torrent.Hash, err)
+				}
 			}
-		}
-
-		if torrentImported {
-			m.importedHashes[torrent.Hash] = true
 		}
 	}
 
