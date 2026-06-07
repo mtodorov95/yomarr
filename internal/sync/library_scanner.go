@@ -1,10 +1,13 @@
 package sync
 
 import (
+	"archive/zip"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,6 +137,7 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 
 			if parsed.Type == indexer.TypeVolume {
 				for volNum := start; volNum <= end; volNum++ {
+					// Update existing rows
 					for i := range dbChapters {
 						ch := &dbChapters[i]
 						chLang := strings.ToLower(ch.Language)
@@ -149,6 +153,77 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 								ch.FilePath = &currentPath
 								if err := ls.ChapterStore.Update(ch); err != nil {
 									log.Printf("[Scanner Error] Fail update Ch %g via volume: %v", ch.Number, err)
+								}
+							}
+						}
+					}
+
+					// Create missing rows
+					ext := strings.ToLower(filepath.Ext(fileName))
+					if ext == ".cbz" || ext == ".zip" {
+						discoveredChapters, err := ls.extractChaptersFromArchive(currentPath, int(volNum))
+						if err != nil {
+							log.Printf("[Scanner Error] Failed to look inside volume archive %s: %v", fileName, err)
+							continue
+						}
+
+						for chNum, assignedVolume := range discoveredChapters {
+							currentDiskKey := fmt.Sprintf("%g_%s", chNum, lang)
+							foundOnDisk[currentDiskKey] = true
+
+							opposingLang := "raw"
+							if lang == "raw" {
+								opposingLang = "en"
+							}
+							opposingKey := fmt.Sprintf("%g_%s", chNum, opposingLang)
+
+							ch, currentExists := chapterMap[currentDiskKey]
+							_, opposingExists := chapterMap[opposingKey]
+
+							if !currentExists && !opposingExists {
+								vAlloc := assignedVolume
+
+								missingTwin := models.Chapters{
+									SeriesID: series.ID,
+									Number:   chNum,
+									Volume:   &vAlloc,
+									Status:   models.ChapterMissing,
+									FilePath: nil,
+									Language: opposingLang,
+								}
+								if err := ls.ChapterStore.Insert(&missingTwin); err != nil {
+									log.Printf("[Scanner Error] Failed to insert parallel placeholder row for Ch %g [%s]: %v", chNum, opposingLang, err)
+								} else {
+									chapterMap[opposingKey] = &missingTwin
+								}
+							}
+
+							if !currentExists {
+								vAlloc := assignedVolume
+								newCh := models.Chapters{
+									SeriesID: series.ID,
+									Number:   chNum,
+									Volume:   &vAlloc,
+									Status:   models.ChapterDownloaded,
+									FilePath: &currentPath,
+									Language: lang,
+								}
+
+								if err := ls.ChapterStore.Insert(&newCh); err != nil {
+									log.Printf("[Scanner Error] Failed to insert newly discovered internal Ch %g: %v", chNum, err)
+								} else {
+									log.Printf("[Scanner] Found chapter Ch %g from Volume %d archive!", chNum, vAlloc)
+									chapterMap[currentDiskKey] = &newCh
+								}
+							} else {
+								vAlloc := assignedVolume
+								if ch.Status != models.ChapterDownloaded {
+									ch.Status = models.ChapterDownloaded
+									ch.Volume = &vAlloc
+									ch.FilePath = &currentPath
+									if err := ls.ChapterStore.Update(ch); err != nil {
+										log.Printf("[Scanner Error] Failed updating internal Ch %g: %v", chNum, err)
+									}
 								}
 							}
 						}
@@ -201,4 +276,70 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 	}
 
 	return nil
+}
+
+// Matches: "- p086-087", "- p000", "_p050", " page 12", " p.012"
+var pageCleanerRegex = regexp.MustCompile(`(?i)[-_\s]p(?:age|[\s.])?\d+(?:\s*-\s*\d+)?`)
+
+func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbackVol int) (map[float64]int, error) {
+	r, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	chapterToVolumeMap := make(map[float64]int)
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+
+		fileName := f.Name
+		if strings.HasPrefix(filepath.Base(fileName), ".") {
+			continue
+		}
+
+		var fileSpecificVol *int
+		if volMatches := indexer.VolRegex.FindStringSubmatch(fileName); len(volMatches) > 1 {
+			if v, err := strconv.Atoi(volMatches[1]); err == nil {
+				fileSpecificVol = &v
+			}
+		} else if jaVolMatches := indexer.VolJaRegex.FindStringSubmatch(fileName); len(jaVolMatches) > 1 {
+			if v, err := strconv.Atoi(jaVolMatches[1]); err == nil {
+				fileSpecificVol = &v
+			}
+		}
+		cleanedName := pageCleanerRegex.ReplaceAllString(fileName, " ")
+
+		if volMatch := indexer.VolRegex.FindString(cleanedName); volMatch != "" {
+			cleanedName = strings.ReplaceAll(cleanedName, volMatch, " ")
+		}
+		if jaVolMatch := indexer.VolJaRegex.FindString(cleanedName); jaVolMatch != "" {
+			cleanedName = strings.ReplaceAll(cleanedName, jaVolMatch, " ")
+		}
+
+		parsed, ok := indexer.ParseTorrentTitle(cleanedName)
+		if !ok {
+			continue
+		}
+
+		targetVolume := fallbackVol
+		if fileSpecificVol != nil {
+			targetVolume = *fileSpecificVol
+		}
+
+		if parsed.Type == indexer.TypeSingle || parsed.Type == indexer.TypeRange {
+			end := parsed.StartNum
+			if parsed.Type == indexer.TypeRange {
+				end = parsed.EndNum
+			}
+
+			for num := parsed.StartNum; num <= end; num++ {
+				chapterToVolumeMap[num] = targetVolume
+			}
+		}
+	}
+
+	return chapterToVolumeMap, nil
 }
