@@ -4,23 +4,34 @@ import type { Series } from '../types'
 
 const props = defineProps<{
     item: Series
+    inLibrary: boolean
 }>()
 
 const emit = defineEmits<{
-    (e: 'import', series: Series): void
+    (e: 'import', payload: { series: Series, onStart: () => void, onEnd: () => void }): void
 }>()
 
 const localPath = ref(props.item.localPath || `/Manga/${props.item.title}`)
+const importing = ref(false)
 
 const coverSrc = computed(() => {
     if (!props.item.thumbnail) return ''
-    
     return `/api/proxy-cover?url=${encodeURIComponent(props.item.thumbnail)}`
 })
+
+function triggerImport() {
+    if (props.inLibrary || importing.value) return
+    
+    emit('import', {
+        series: { ...props.item, localPath: localPath.value },
+        onStart: () => { importing.value = true },
+        onEnd: () => { importing.value = false }
+    })
+}
 </script>
 
 <template>
-    <div class="card-container">
+    <div class="card-container" :class="{ 'in-library-card': inLibrary }">
         <div class="card-content">
             <div class="thumbnail-wrapper">
                 <img 
@@ -39,22 +50,28 @@ const coverSrc = computed(() => {
                 <div class="card-header">
                     <div class="meta-section">
                         <p class="series-title">{{ item.title }}</p>
-                        <p class="series-status">Status: {{ item.status }}</p>
+                        <p class="series-status">Status: <span class="status-badge">{{ item.status }}</span></p>
+                    </div>
+                    
+                    <div v-if="inLibrary" class="library-badge">
+                        In Library
                     </div>
                 </div>
 
-                <div class="action-row">
+                <div v-if="!inLibrary" class="action-row">
                     <input 
                         v-model="localPath" 
+                        :disabled="importing"
                         type="text" 
                         placeholder="Storage path..."
                         class="path-input" 
                     />
                     <button 
-                        @click="emit('import', { ...item, localPath })"
+                        @click="triggerImport"
+                        :disabled="importing"
                         class="import-button"
                     >
-                        Import
+                        {{ importing ? 'Importing...' : 'Import' }}
                     </button>
                 </div>
             </div>
@@ -68,12 +85,22 @@ const coverSrc = computed(() => {
     background-color: #0f172a;
     border-radius: 0.5rem;
     border: 1px solid #334155;
+    transition: border-color 0.2s, background-color 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.in-library-card {
+    border-color: #1e293b;
+    background-color: #111827;
+    opacity: 0.85;
 }
 
 .card-content {
     display: flex;
     gap: 1rem;
-    align-items: flex-start;
+    align-items: center;
+    width: 100%;
 }
 
 .thumbnail-wrapper {
@@ -116,11 +143,14 @@ const coverSrc = computed(() => {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 1rem;
+    width: 100%;
 }
 
 .meta-section {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .series-title {
@@ -140,10 +170,29 @@ const coverSrc = computed(() => {
     margin-top: 0.25rem;
 }
 
+.status-badge {
+    color: #cbd5e1;
+    font-weight: 500;
+}
+
+.library-badge {
+    background-color: #1e293b;
+    color: #3b82f6;
+    border: 1px solid #2563eb;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
 .action-row {
     display: flex;
     gap: 0.5rem;
-    margin-top: auto;
+    align-items: center;
+    width: 100%;
 }
 
 .path-input {
@@ -152,9 +201,10 @@ const coverSrc = computed(() => {
     background-color: #1e293b;
     border: 1px solid #475569;
     border-radius: 0.375rem;
-    padding: 0.375rem 0.75rem;
+    padding: 0.5rem 0.75rem;
     color: #ffffff;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, opacity 0.2s;
+    min-width: 0;
 }
 
 .path-input:focus {
@@ -162,20 +212,32 @@ const coverSrc = computed(() => {
     border-color: #3b82f6;
 }
 
+.path-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .import-button {
     background-color: #16a34a;
     color: #ffffff;
     font-size: 0.875rem;
     font-weight: 700;
-    padding: 0.375rem 1rem;
+    padding: 0.5rem 1.25rem;
     border-radius: 0.375rem;
     border: none;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, opacity 0.2s;
     white-space: nowrap;
+    min-width: 6.5rem;
 }
 
-.import-button:hover {
+.import-button:hover:not(:disabled) {
     background-color: #22c55e;
+}
+
+.import-button:disabled {
+    background-color: #334155;
+    color: #94a3b8;
+    cursor: not-allowed;
 }
 </style>

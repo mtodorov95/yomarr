@@ -17,6 +17,13 @@ type MangaDexProvider struct {
 
 type mdLocalizedString map[string]string
 
+type mdTag struct {
+	Attributes struct {
+		Name  mdLocalizedString `json:"name"`
+		Group string            `json:"group"`
+	} `json:"attributes"`
+}
+
 type mdRelationship struct {
 	ID         string         `json:"id"`
 	Type       string         `json:"type"`
@@ -24,10 +31,12 @@ type mdRelationship struct {
 }
 
 type mdMangaAttributes struct {
-	Title     mdLocalizedString   `json:"title"`
-	AltTitles []mdLocalizedString `json:"altTitles"`
-	Status    string              `json:"status"`
-	Links     map[string]string   `json:"links"`
+	Title       mdLocalizedString   `json:"title"`
+	AltTitles   []mdLocalizedString `json:"altTitles"`
+	Status      string              `json:"status"`
+	Links       map[string]string   `json:"links"`
+	Description mdLocalizedString   `json:"description"`
+	Tags        []mdTag             `json:"tags"`
 }
 
 type mdMangaData struct {
@@ -103,6 +112,50 @@ func getMDTitle(titleMap mdLocalizedString, altTitles []mdLocalizedString) strin
 	return "Unknown Title"
 }
 
+func getMDDescription(descMap mdLocalizedString) *string {
+	if descMap == nil {
+		return nil
+	}
+	if d, ok := descMap["en"]; ok && d != "" {
+		return &d
+	}
+	for _, d := range descMap {
+		if d != "" {
+			return &d
+		}
+	}
+	return nil
+}
+
+func getMDGenres(tags []mdTag) []string {
+	var genres []string
+	for _, tag := range tags {
+		if tag.Attributes.Group == "genre" {
+			if name, ok := tag.Attributes.Name["en"]; ok && name != "" {
+				genres = append(genres, name)
+			}
+		}
+	}
+	return genres
+}
+
+func getMDAuthor(relationships []mdRelationship) *string {
+	var artistName *string
+	for _, rel := range relationships {
+		if rel.Type == "author" && rel.Attributes != nil {
+			if name, ok := rel.Attributes["name"].(string); ok && name != "" {
+				return &name
+			}
+		}
+		if rel.Type == "artist" && rel.Attributes != nil {
+			if name, ok := rel.Attributes["name"].(string); ok && name != "" {
+				artistName = &name
+			}
+		}
+	}
+	return artistName
+}
+
 func mapMDStatus(status string) models.SeriesStatus {
 	switch status {
 	case "ongoing", "hiatus":
@@ -169,8 +222,10 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 
 	q := req.URL.Query()
 	q.Add("title", query)
-	q.Add("limit", "10")
+	q.Add("limit", "20")
 	q.Add("includes[]", "cover_art")
+	q.Add("includes[]", "author")
+	q.Add("includes[]", "artist")
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := p.Client.Do(req)
@@ -215,13 +270,16 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 		}
 
 		results = append(results, models.Series{
-			MangadexID: &mdID,
-			Title:      getMDTitle(item.Attributes.Title, item.Attributes.AltTitles),
-			AltTitles:  fallbacks,
-			Status:     mapMDStatus(item.Attributes.Status),
-			AnilistID:  alIDPtr,
-			Thumbnail:  primaryCover,
+			MangadexID:       &mdID,
+			Title:            getMDTitle(item.Attributes.Title, item.Attributes.AltTitles),
+			AltTitles:        fallbacks,
+			Status:           mapMDStatus(item.Attributes.Status),
+			AnilistID:        alIDPtr,
+			Thumbnail:        primaryCover,
 			HistoricalCovers: make([]string, 0),
+			Author:           getMDAuthor(item.Relationships),
+			Genres:           getMDGenres(item.Attributes.Tags),
+			Description:      getMDDescription(item.Attributes.Description),
 		})
 	}
 
@@ -229,7 +287,7 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 }
 
 func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
-	apiURL := fmt.Sprintf("https://api.mangadex.org/manga/%s", url.PathEscape(id))
+	apiURL := fmt.Sprintf("https://api.mangadex.org/manga/%s?includes[]=author&includes[]=artist", url.PathEscape(id))
 	resp, err := p.Client.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("mangadex get details failed: %w", err)
@@ -273,6 +331,9 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		Status:           mapMDStatus(res.Data.Attributes.Status),
 		Thumbnail:        thumbnail,
 		HistoricalCovers: historical,
+		Author:           getMDAuthor(res.Data.Relationships),
+		Genres:           getMDGenres(res.Data.Attributes.Tags),
+		Description:      getMDDescription(res.Data.Attributes.Description),
 	}, nil
 }
 

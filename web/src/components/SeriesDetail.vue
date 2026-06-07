@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { Series, Chapter } from '../types'
-import { useToast } from '@/composables/useToast';
+import { RouterLink } from 'vue-router'
+import type { Series } from '../types'
+import { useToast } from '@/composables/useToast'
 
 interface LanguageVariant {
     id: number
@@ -20,7 +21,7 @@ const props = defineProps<{
     id: string
 }>()
 
-const toast = useToast();
+const toast = useToast()
 const series = ref<Series | null>(null)
 const groupedChapters = ref<GroupedChapter[]>([])
 const loading = ref(true)
@@ -41,27 +42,30 @@ async function loadPageData() {
 
         const chaptersRes = await fetch(`/api/chapters?series_id=${seriesId}`)
         if (!chaptersRes.ok) throw new Error('Failed to fetch chapters')
-        groupedChapters.value = await chaptersRes.json() ?? [];
+        groupedChapters.value = await chaptersRes.json() ?? []
     } catch (e) {
         console.error(e)
-        toast.error("Faield to fetch chapters")
+        toast.error("Failed to fetch library manifest records")
     } finally {
         loading.value = false
     }
 }
 
 async function searchMissingChapters() {
-  if (!series.value?.id) return
-  try {
-    const res = await fetch(`/api/series/search-missing?series_id=${series.value.id}`, {
-      method: 'POST'
-    })
-    if (!res.ok) throw new Error('Search request failed')
-    toast.info('Search started in background')
-  } catch (e) {
-    console.error(e)
-    toast.error('Search trigger failed')
-  }
+    if (!series.value?.id) return
+    searching.value = true
+    try {
+        const res = await fetch(`/api/series/search-missing?series_id=${series.value.id}`, {
+            method: 'POST'
+        })
+        if (!res.ok) throw new Error('Search request failed')
+        toast.info('Search indexer triggered in background')
+    } catch (e) {
+        console.error(e)
+        toast.error('Failed to wake tracking search target')
+    } finally {
+        searching.value = false
+    }
 }
 
 function getAssetUrl(filename: string | undefined): string {
@@ -75,66 +79,85 @@ onMounted(loadPageData)
 <template>
     <div class="detail-container">
         <div v-if="loading && !series" class="loading-state">
-            Querying Chapter Database Manifest...
+            Querying Database Tracking Manifest...
         </div>
 
         <div v-else-if="!series" class="empty-state">
-            <p class="empty-title">Series Not Found</p>
-            <p class="empty-subtitle">The requested series record could not be located in your database.</p>
-            <RouterLink to="/" class="back-button" style="display: inline-flex; margin-top: 1rem;">
+            <p class="empty-title">Series Record Hidden</p>
+            <p class="empty-subtitle">The backend database failed to return a match for this ID reference.</p>
+            <RouterLink to="/" class="back-button-link" style="margin-top: 1rem;">
                 Back to Library
             </RouterLink>
         </div>
 
         <template v-else>
-            <div class="series-profile-card">
-                <div class="profile-poster-frame">
+            <div class="arr-series-banner">
+                <div class="banner-poster-container">
                     <img 
                         v-if="series.thumbnail" 
                         :src="getAssetUrl(series.thumbnail)" 
                         :alt="series.title" 
-                        class="profile-poster"
+                        class="banner-poster-img"
                     />
-                    <div v-else class="poster-fallback">No Cover</div>
+                    <div v-else class="banner-poster-fallback">No Cover</div>
                 </div>
 
-                <div class="profile-details">
-                    <div class="detail-header">
-                        <div class="meta-block">
-                            <RouterLink to="/" class="back-button">
-                                <span>←</span> Back to Library
-                            </RouterLink>
-                            <div>
-                                <h2 class="series-title">{{ series.title }}</h2>
-                                <p class="path-text">
-                                    Storage Path: <code class="path-code">{{ series.path }}</code>
-                                </p>
-                            </div>
-                        </div>
+                <div class="banner-content-info">
+                    <div class="banner-actions-line">
+                        <RouterLink to="/" class="back-button-link">
+                            ← Back to Library
+                        </RouterLink>
 
-                        <div>
-                            <button 
-                                @click="searchMissingChapters()"
-                                :disabled="searching"
-                                class="search-missing-button"
-                            >
-                                <span v-if="searching" class="spinner">⏳</span>
-                                <span v-else>🔍</span>
-                                {{ searching ? 'Searching Nyaa...' : 'Search Missing' }}
-                            </button>
-                        </div>
+                        <button 
+                            @click="searchMissingChapters"
+                            :disabled="searching"
+                            class="arr-action-btn search-accent"
+                        >
+                            <span>{{ searching ? '⏳' : '🔍' }}</span>
+                            {{ searching ? 'Searching missing...' : 'Search Missing' }}
+                        </button>
                     </div>
 
-                    <div class="tab-row-container">
+                    <div class="series-identity-block">
+                        <h1 class="main-series-headline">{{ series.title }}</h1>
+                        
+                        <div v-if="series.author" class="author-label-line">
+                            by <span class="author-name-highlight">{{ series.author }}</span>
+                        </div>
+
+                        <div class="arr-metadata-pill-row">
+                            <span class="arr-pill storage-path-pill">
+                                📁 {{ series.path }}
+                            </span>
+                            <span class="arr-pill status-pill" :class="series.status?.toLowerCase()">
+                                ⚡ {{ series.status || 'Unknown State' }}
+                            </span>
+                            <template v-if="series.genres">
+                                <span 
+                                    v-for="genre in (Array.isArray(series.genres) ? series.genres : String(series.genres).split(','))" 
+                                    :key="genre" 
+                                    class="arr-pill genre-pill"
+                                >
+                                    {{ genre.trim() }}
+                                </span>
+                            </template>
+                        </div>
+
+                        <p class="series-plot-synopsis">
+                            {{ series.description || 'No descriptive structural profile summary details synchronized or indexed inside database fields yet.' }}
+                        </p>
+                    </div>
+
+                    <div class="arr-sub-tab-navigation">
                         <button 
                             @click="activeTab = 'chapters'" 
-                            :class="['tab-toggle-item', activeTab === 'chapters' ? 'tab-active' : '']"
+                            :class="['navigation-tab-btn', activeTab === 'chapters' ? 'is-active' : '']"
                         >
                             Chapters Manifest ({{ groupedChapters.length }})
                         </button>
                         <button 
                             @click="activeTab = 'covers'" 
-                            :class="['tab-toggle-item', activeTab === 'covers' ? 'tab-active' : '']"
+                            :class="['navigation-tab-btn', activeTab === 'covers' ? 'is-active' : '']"
                         >
                             Historical Covers ({{ series.historical_covers?.length ?? 0 }})
                         </button>
@@ -142,35 +165,35 @@ onMounted(loadPageData)
                 </div>
             </div>
 
-            <div v-if="activeTab === 'chapters'">
-                <div v-if="groupedChapters && groupedChapters.length > 0" class="table-card">
-                    <div class="table-responsive">
-                        <table class="manifest-table">
+            <div v-if="activeTab === 'chapters'" class="tab-pane-view">
+                <div v-if="groupedChapters && groupedChapters.length > 0" class="arr-table-card">
+                    <div class="table-container-scroller">
+                        <table class="arr-manifest-data-table">
                             <thead>
-                                <tr class="table-header-row">
-                                    <th class="table-th">Chapter Number</th>
-                                    <th class="table-th">Volume</th>
-                                    <th class="table-th">Available Releases / Language Status</th>
+                                <tr class="header-labels-row">
+                                    <th class="column-th text-left">Chapter Number</th>
+                                    <th class="column-th text-left">Volume</th>
+                                    <th class="column-th text-left">Available Releases / Language Status</th>
                                 </tr>
                             </thead>
-                            <tbody class="table-body">
-                                <tr v-for="ch in groupedChapters" :key="ch.number" class="table-row">
-                                    <td class="table-td td-chapter">
+                            <tbody>
+                                <tr v-for="ch in groupedChapters" :key="ch.number" class="body-data-row">
+                                    <td class="column-td font-bold text-white">
                                         Chapter {{ ch.number }}
                                     </td>
-                                    <td class="table-td td-volume">
+                                    <td class="column-td text-muted">
                                         {{ ch.volume !== null && ch.volume !== undefined ? `Vol. ${ch.volume}` : '—' }}
                                     </td>
-                                    <td class="table-td">
-                                        <div class="variant-badge-stack">
+                                    <td class="column-td">
+                                        <div class="badge-flex-layout">
                                             <div 
                                                 v-for="v in ch.variants" 
                                                 :key="v.id"
-                                                class="variant-wrapper"
-                                                :title="v.file_path || 'No file registered'"
+                                                class="badge-wrapper-node"
+                                                :title="v.file_path || 'No local source matched'"
                                             >
-                                                <span :class="['status-badge', v.status === 'Downloaded' ? 'badge-downloaded' : 'badge-missing']">
-                                                    <span class="lang-token">{{ v.language }}:</span> {{ v.status }}
+                                                <span :class="['arr-status-tag', v.status?.toLowerCase() === 'downloaded' ? 'is-downloaded' : 'is-missing']">
+                                                    <span class="lang-token-prefix">{{ v.language }}:</span> {{ v.status }}
                                                 </span>
                                             </div>
                                         </div>
@@ -181,36 +204,36 @@ onMounted(loadPageData)
                     </div>
                 </div>
 
-                <div v-else class="empty-state">
-                    <p class="empty-title">Manifest Unpopulated</p>
-                    <p class="empty-subtitle">MangaDex feed contains no records or synchronization hasn't run yet.</p>
+                <div v-else class="empty-dashed-box">
+                    <p class="empty-title">Manifest Index Unpopulated</p>
+                    <p class="empty-subtitle">Local folder storage matching or system synchronizer hasn't parsed this workspace path target yet.</p>
                 </div>
             </div>
 
-            <div v-if="activeTab === 'covers'">
-                <div v-if="series.historical_covers && series.historical_covers.length > 0" class="covers-archive-grid">
+            <div v-if="activeTab === 'covers'" class="tab-pane-view">
+                <div v-if="series.historical_covers && series.historical_covers.length > 0" class="arr-covers-fluid-grid">
                     <div 
                         v-for="(coverFile, index) in series.historical_covers" 
                         :key="index" 
-                        class="archive-cover-card"
+                        class="arr-cover-archive-card"
                     >
-                        <div class="archive-image-frame">
+                        <div class="archive-image-wrapper">
                             <img 
                                 :src="getAssetUrl(coverFile)" 
                                 alt="Volume Artwork Variant" 
-                                class="archive-image" 
+                                class="archive-raw-img" 
                                 loading="lazy"
                             />
                         </div>
-                        <div class="archive-meta-tag">
+                        <div class="archive-label-tag">
                             Variant {{ index + 1 }}
                         </div>
                     </div>
                 </div>
 
-                <div v-else class="empty-state">
-                    <p class="empty-title">No Historical Variants Saved</p>
-                    <p class="empty-subtitle">This series tracker only has its primary thumbnail record downloaded locally.</p>
+                <div v-else class="empty-dashed-box">
+                    <p class="empty-title">Single Local Specimen</p>
+                    <p class="empty-subtitle">This media sequence asset currently tracks only its baseline thumbnail identity cover.</p>
                 </div>
             </div>
         </template>
@@ -219,374 +242,398 @@ onMounted(loadPageData)
 
 <style scoped>
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateY(2px); }
     to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
 }
 
 .detail-container {
     width: 100%;
-    max-width: 56rem;
-    animation: fadeIn 0.2s ease-out;
+    animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.series-profile-card {
+.arr-series-banner {
     display: flex;
-    gap: 1.5rem;
-    background-color: #1e293b;
-    border: 1px solid #334155;
-    padding: 1.25rem;
-    border-radius: 1rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-}
-
-.profile-poster-frame {
-    width: 7.5rem;
-    height: 11rem;
-    flex-shrink: 0;
+    flex-direction: column;
+    gap: 2rem;
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    padding: 1.5rem;
     border-radius: 0.5rem;
-    overflow: hidden;
-    background-color: #0f172a;
-    border: 1px solid #475569;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
 }
 
-.profile-poster {
+@media (min-width: 768px) {
+    .arr-series-banner {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+}
+
+.banner-poster-container {
+    width: 11.5rem;
+    aspect-ratio: 2 / 3;
+    flex-shrink: 0;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    background-color: #030712;
+    border: 1px solid #374151;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+    .banner-poster-container {
+        margin: 0;
+    }
+}
+
+.banner-poster-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-.poster-fallback {
+.banner-poster-fallback {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #475569;
+    color: #4b5563;
     font-size: 0.875rem;
     font-weight: 700;
 }
 
-.profile-details {
+.banner-content-info {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
     min-width: 0;
 }
 
-.detail-header {
+.banner-actions-line {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    width: 100%;
-}
-
-.meta-block {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.tab-row-container {
-    display: flex;
-    gap: 0.5rem;
-    border-bottom: 1px solid #334155;
-    margin-top: 1rem;
-    padding-bottom: 0.125rem;
-}
-
-.tab-toggle-item {
-    background: none;
-    border: none;
-    color: #94a3b8;
-    font-size: 0.875rem;
-    font-weight: 700;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    border-radius: 0.375rem 0.375rem 0 0;
-    transition: color 0.2s, background-color 0.2s;
-}
-
-.tab-toggle-item:hover {
-    color: #f8fafc;
-    background-color: rgba(15, 23, 42, 0.3);
-}
-
-.tab-active {
-    color: #60a5fa !important;
-    background-color: #0f172a !important;
-    border: 1px solid #334155;
-    border-bottom-color: #0f172a;
-    position: relative;
-    margin-bottom: -2px;
-}
-
-.covers-archive-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-}
-
-@media (min-width: 480px) {
-    .covers-archive-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-@media (min-width: 640px) {
-    .covers-archive-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-
-.archive-cover-card {
-    background-color: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 0.5rem;
-    padding: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
     align-items: center;
-}
-
-.archive-image-frame {
+    justify-content: space-between;
     width: 100%;
-    aspect-ratio: 2 / 3;
-    overflow: hidden;
-    border-radius: 0.375rem;
-    background-color: #0f172a;
+    margin-bottom: 1.25rem;
+    gap: 1rem;
 }
 
-.archive-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.archive-meta-tag {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    font-weight: 600;
-}
-
-.back-button {
+.back-button-link {
     text-decoration: none;
-    background-color: #0f172a;
-    border: 1px solid #334155;
-    padding: 0.375rem 0.75rem;
-    border-radius: 0.5rem;
+    background-color: #1f2937;
+    border: 1px solid #374151;
+    padding: 0.4rem 0.85rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #f3f4f6;
+    transition: background-color 0.15s;
+}
+
+.back-button-link:hover {
+    background-color: #4b5563;
+}
+
+.arr-action-btn {
+    background-color: #2563eb;
+    border: 1px solid transparent;
+    padding: 0.4rem 0.85rem;
+    border-radius: 0.25rem;
     font-size: 0.75rem;
     font-weight: 700;
     color: #ffffff;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     cursor: pointer;
-    align-self: flex-start;
-    transition: background-color 0.2s;
+    transition: background-color 0.15s;
 }
 
-.back-button:hover {
-    background-color: #334155;
-}
-
-.series-title {
-    font-size: 1.5rem;
-    font-weight: 900;
-    color: #60a5fa;
-    letter-spacing: -0.025em;
-    margin: 0;
-}
-
-.path-text {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    margin-top: 0.125rem;
-    margin-bottom: 0;
-}
-
-.path-code {
-    color: #cbd5e1;
-    background-color: rgba(0, 0, 0, 0.4);
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.search-missing-button {
+.arr-action-btn.search-accent {
     background-color: #2563eb;
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    padding: 0.5rem 1rem;
-    border-radius: 0.75rem;
-    font-size: 0.875rem;
-    font-weight: 700;
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.1);
-    transition: background-color 0.2s;
 }
 
-.search-missing-button:hover:not(:disabled) {
+.arr-action-btn.search-accent:hover:not(:disabled) {
     background-color: #3b82f6;
 }
 
-.search-missing-button:disabled {
-    background-color: #334155;
-    color: #64748b;
-    border-color: transparent;
+.arr-action-btn:disabled {
+    background-color: #374151;
+    color: #9ca3af;
     cursor: not-allowed;
-    box-shadow: none;
 }
 
-.spinner {
-    display: inline-block;
-    animation: spin 1s linear infinite;
+.series-identity-block {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1.5rem;
+}
+
+.main-series-headline {
+    font-size: 2rem;
+    font-weight: 400;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+}
+
+.author-label-line {
+    font-size: 0.9rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+}
+
+.author-name-highlight {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.arr-metadata-pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.arr-pill {
     font-size: 0.75rem;
+    color: #d1d5db;
+    background-color: #1f2937;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
 }
 
-.loading-state {
-    color: #64748b;
-    font-style: italic;
-    padding: 2rem 0;
-    text-align: center;
+.storage-path-pill {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background-color: #111827;
+    border: 1px solid #1f2937;
 }
 
-.table-card {
-    background-color: #0f172a;
-    border: 1px solid #334155;
-    border-radius: 1rem;
+.status-pill.ongoing {
+    color: #4ade80;
+    background-color: rgba(21, 128, 61, 0.2);
+}
+
+.status-pill.completed {
+    color: #60a5fa;
+    background-color: rgba(29, 78, 216, 0.2);
+}
+
+.genre-pill {
+    background-color: #374151;
+    color: #e5e7eb;
+}
+
+.series-plot-synopsis {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #9ca3af;
+    margin: 0;
+    max-width: 48rem;
+}
+
+.arr-sub-tab-navigation {
+    display: flex;
+    gap: 1.25rem;
+    border-bottom: 1px solid #1f2937;
+    margin-top: auto;
+}
+
+.navigation-tab-btn {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.5rem 0.1rem;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.15s;
+}
+
+.navigation-tab-btn:hover {
+    color: #ffffff;
+}
+
+.navigation-tab-btn.is-active {
+    color: #38bdf8 !important;
+}
+
+.navigation-tab-btn.is-active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: #38bdf8;
+}
+
+.tab-pane-view {
+    width: 100%;
+}
+
+.arr-table-card {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 0.375rem;
     overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-.table-responsive {
+.table-container-scroller {
+    width: 100%;
     overflow-x: auto;
 }
 
-.manifest-table {
+.arr-manifest-data-table {
     width: 100%;
     text-align: left;
     border-collapse: collapse;
 }
 
-.table-header-row {
-    border-bottom: 1px solid #334155;
-    background-color: rgba(15, 23, 42, 0.4);
-    color: #94a3b8;
+.header-labels-row {
+    border-bottom: 1px solid #1f2937;
+    background-color: #111827;
+    color: #9ca3af;
     font-size: 0.75rem;
     text-transform: uppercase;
-    font-weight: 900;
-    letter-spacing: 0.05em;
-}
-
-.table-th {
-    padding: 1rem;
-}
-
-.table-body {
-    color: #e2e8f0;
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.table-body :deep(tr:not(:last-child)) {
-    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-}
-
-.table-row {
-    transition: background-color 0.2s;
-}
-
-.table-row:hover {
-    background-color: rgba(51, 65, 85, 0.2);
-}
-
-.table-td {
-    padding: 1rem;
-}
-
-.td-chapter {
     font-weight: 700;
-    color: #f8fafc;
+    letter-spacing: 0.025em;
 }
 
-.td-volume {
-    color: #94a3b8;
-    font-weight: 400;
+.column-th {
+    padding: 0.75rem 1rem;
 }
 
-.variant-badge-stack {
+.body-data-row {
+    border-bottom: 1px solid #1f2937;
+    color: #d1d5db;
+    font-size: 0.85rem;
+    transition: background-color 0.1s;
+}
+
+.body-data-row:hover {
+    background-color: #1f2937;
+}
+
+.column-td {
+    padding: 0.75rem 1rem;
+}
+
+.text-left { text-align: left; }
+.font-bold { font-weight: 700; }
+.text-white { color: #ffffff; }
+.text-muted { color: #9ca3af; }
+
+.badge-flex-layout {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
+    gap: 0.4rem;
 }
 
-.variant-wrapper {
+.badge-wrapper-node {
     display: inline-flex;
 }
 
-.status-badge {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
+.arr-status-tag {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    border-radius: 0.5rem;
-    border: 1px solid transparent;
-    letter-spacing: 0.025em;
+    border-radius: 0.25rem;
     text-transform: uppercase;
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.2rem;
 }
 
-.lang-token {
-    opacity: 0.8;
-    font-weight: 900;
+.lang-token-prefix {
+    opacity: 0.75;
 }
 
-.badge-downloaded {
-    background-color: rgba(34, 197, 94, 0.1);
-    color: #4ade80;
-    border-color: rgba(34, 197, 94, 0.2);
+.arr-status-tag.is-downloaded {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
 }
 
-.badge-missing {
+.arr-status-tag.is-missing {
     background-color: rgba(239, 68, 68, 0.1);
     color: #f87171;
-    border-color: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.15);
 }
 
-.empty-state {
-    color: #94a3b8;
+.arr-covers-fluid-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1.25rem;
+}
+
+.arr-cover-archive-card {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 0.25rem;
+    padding: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.archive-image-wrapper {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: 0.125rem;
+    background-color: #030712;
+}
+
+.archive-raw-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.archive-label-tag {
+    font-size: 0.7rem;
+    color: #9ca3af;
     text-align: center;
-    padding: 3rem 0;
-    background-color: rgba(30, 41, 59, 0.4);
-    border: 1px solid #1e293b;
-    border-style: dashed;
-    border-radius: 1rem;
+    font-weight: 600;
+}
+
+.empty-dashed-box {
+    color: #9ca3af;
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: #111827;
+    border: 1px dashed #1f2937;
+    border-radius: 0.375rem;
 }
 
 .empty-title {
-    font-size: 1.125rem;
+    font-size: 1rem;
     font-weight: 700;
-    margin-top: 0;
-    margin-bottom: 0.25rem;
+    margin: 0 0 0.25rem 0;
+    color: #ffffff;
 }
 
 .empty-subtitle {
     font-size: 0.75rem;
-    color: #64748b;
+    color: #9ca3af;
     margin: 0;
+}
+
+.loading-state {
+    color: #9ca3af;
+    font-style: italic;
+    padding: 3rem 0;
+    text-align: center;
 }
 </style>

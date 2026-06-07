@@ -15,6 +15,9 @@ type Series struct {
 	TotalChapters    int          `json:"total_chapters"`
 	Thumbnail        string       `json:"thumbnail"`
 	HistoricalCovers []string     `json:"historical_covers"`
+	Author           *string      `json:"author"`
+	Genres           []string     `json:"genres"`
+	Description      *string      `json:"description"`
 }
 
 type Chapters struct {

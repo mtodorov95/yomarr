@@ -14,7 +14,7 @@ onMounted(async () => {
         const data = await res.json()
         status.value = data.status
     } catch (e) {
-        status.value = 'error'
+        status.value = 'offline'
         toast.error("Backend offline")
     }
 })
@@ -44,116 +44,251 @@ async function handleImport(item: Series) {
     }
 }
 </script>
+
 <template>
-    <div class="app-container">
-        <h1 class="app-logo">YOMARR</h1>
+    <div class="app-layout">
+        <input type="checkbox" id="sidebar-toggle" class="sidebar-state-checkbox" />
 
-        <div class="health-card">
-            <p class="health-text">
-                Backend:
-                <span :class="['status-badge', status === 'ok' ? 'status-ok' : 'status-error']">
-                    {{ status }}
-                </span>
-            </p>
-        </div>
+        <header class="mobile-navbar">
+            <label for="sidebar-toggle" class="burger-menu-btn" aria-label="Toggle Navigation Panel">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="burger-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </label>
+            <span class="mobile-brand-logo">YOMARR</span>
+        </header>
 
-        <div class="nav-tabs">
-            <RouterLink 
-                to="/" 
-                class="tab-button" 
-                active-class="active-tab"
-            >
-                Library
-            </RouterLink>
-            <RouterLink 
-                to="/add" 
-                class="tab-button" 
-                active-class="active-tab"
-            >
-                Add New
-            </RouterLink>
-        </div>
+        <aside class="app-sidebar">
+            <div class="sidebar-top">
+                <h1 class="sidebar-logo">YOMARR</h1>
+                <nav class="sidebar-nav">
+                    <RouterLink to="/" class="nav-item" active-class="active-nav">
+                        <span class="nav-icon">📚</span>
+                        <span class="nav-text">Library</span>
+                    </RouterLink>
+                    <RouterLink to="/add" class="nav-item" active-class="active-nav">
+                        <span class="nav-icon">➕</span>
+                        <span class="nav-text">Add New</span>
+                    </RouterLink>
+                </nav>
+            </div>
 
-        <RouterView @import="handleImport" />
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <span class="status-indicator-dot" :class="{ 'is-ok': status === 'ok', 'is-error': status !== 'ok' }"></span>
+                    <span class="status-label">System Status: <strong>{{ status }}</strong></span>
+                </div>
+            </div>
+        </aside>
+
+        <label for="sidebar-toggle" class="sidebar-overlay-backdrop"></label>
+
+        <main class="main-content">
+            <RouterView @import="handleImport" />
+        </main>
 
         <ToastContainer />
     </div>
 </template>
 
 <style scoped>
-.app-container {
+.app-layout {
+    display: flex;
     min-height: 100vh;
     background-color: #0f172a;
     color: #ffffff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 2rem;
     font-family: system-ui, -apple-system, sans-serif;
 }
 
-.app-logo {
-    font-size: 3rem;
+.sidebar-state-checkbox {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.mobile-navbar {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3.5rem;
+    background-color: #1e293b;
+    border-bottom: 1px solid #334155;
+    align-items: center;
+    padding: 0 1rem;
+    gap: 1rem;
+    z-index: 40;
+}
+
+.burger-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.375rem;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.burger-menu-btn:hover {
+    color: #ffffff;
+    background-color: #334155;
+}
+
+.burger-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.mobile-brand-logo {
+    font-size: 1.25rem;
     font-weight: 900;
-    margin-bottom: 1.5rem;
     letter-spacing: -0.05em;
     color: #60a5fa;
 }
 
-.health-card {
+.app-sidebar {
+    width: 240px;
     background-color: #1e293b;
-    padding: 1rem;
-    border-radius: 0.75rem;
-    border: 1px solid #334155;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    margin-bottom: 1.5rem;
-    width: 100%;
-    max-width: 36rem;
-}
-
-.health-text {
-    font-size: 0.875rem;
-    font-weight: 500;
-    margin: 0;
-}
-
-.status-badge {
-    text-transform: uppercase;
-    font-weight: 700;
-}
-
-.status-ok {
-    color: #34d399;
-}
-
-.status-error {
-    color: #f87171;
-}
-
-.nav-tabs {
+    border-right: 1px solid #334155;
     display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
+    flex-direction: column;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.tab-button {
-    background: none;
-    border: none;
-    color: #94a3b8;
-    padding-bottom: 0.25rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: color 0.2s, border-color 0.2s;
-    border-bottom: 2px solid transparent;
+.sidebar-top {
+    padding: 1.5rem 1rem;
 }
 
-.tab-button:hover {
-    color: #ffffff;
-}
-
-.active-tab {
+.sidebar-logo {
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: -0.05em;
     color: #60a5fa;
-    border-bottom: 2px solid #60a5fa;
+    margin: 0 0 2rem 0.5rem;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: #94a3b8;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
+}
+
+.nav-item:hover {
+    color: #ffffff;
+    background-color: #334155;
+}
+
+.active-nav {
+    color: #60a5fa;
+    background-color: #0f172a;
+    box-shadow: inset 4px 0 0 0 #60a5fa;
+}
+
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid #334155;
+    background-color: #111827;
+}
+
+.system-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.status-indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-indicator-dot.is-ok {
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+}
+
+.status-indicator-dot.is-error {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+}
+
+.status-label {
+    white-space: nowrap;
+}
+
+.status-label strong {
+    text-transform: uppercase;
+}
+
+.main-content {
+    flex: 1;
+    margin-left: 240px;
+    padding: 2rem 3rem;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.sidebar-overlay-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 50;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .mobile-navbar {
+        display: flex; 
+    }
+
+    .app-sidebar {
+        transform: translateX(-100%); 
+        top: 0;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 5rem 1rem 1.5rem 1rem;
+        width: 100%;
+    }
+
+    .sidebar-state-checkbox:checked ~ .app-sidebar {
+        transform: translateX(0); 
+    }
+
+    .sidebar-state-checkbox:checked ~ .sidebar-overlay-backdrop {
+        display: block; 
+    }
 }
 </style>

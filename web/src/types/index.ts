@@ -14,6 +14,9 @@ export interface Series {
   total_chapters?: number;
   thumbnail?: string;
   historical_covers: string[];
+  author?: string | null;
+  genres: string[];
+  description?: string | null;
 }
 
 export interface Chapter {

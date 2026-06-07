@@ -24,7 +24,13 @@ type SeriesStore interface {
 type SQLiteSeriesStore struct{}
 
 func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
-	rows, err := DB.Query("SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, total_chapters, thumbnail, historical_covers FROM series")
+	query := `
+		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
+		       total_chapters, thumbnail, historical_covers, author, genres, description 
+		FROM series
+	`
+
+	rows, err := DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -36,13 +42,19 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 		var s models.Series
 		var altStr string
 		var histStr string
+		var genresStr string
 
-		if err := rows.Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status, &s.TotalChapters, &s.Thumbnail, &histStr); err != nil {
+		err := rows.Scan(
+			&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
+			&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &genresStr, &s.Description,
+		)
+		if err != nil {
 			return nil, err
 		}
 
 		_ = json.Unmarshal([]byte(altStr), &s.AltTitles)
 		_ = json.Unmarshal([]byte(histStr), &s.HistoricalCovers)
+		_ = json.Unmarshal([]byte(genresStr), &s.Genres)
 		list = append(list, s)
 	}
 	return list, nil
@@ -52,9 +64,19 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 	var s models.Series
 	var altStr string
 	var histStr string
+	var genresStr string
 
-	err := DB.QueryRow("SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, total_chapters, thumbnail, historical_covers FROM series WHERE id = ?", id).
-		Scan(&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status, &s.TotalChapters, &s.Thumbnail, &histStr)
+	query := `
+		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
+		       total_chapters, thumbnail, historical_covers, author, genres, description 
+		FROM series 
+		WHERE id = ?
+	`
+
+	err := DB.QueryRow(query, id).Scan(
+		&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
+		&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &genresStr, &s.Description,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -64,6 +86,7 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 
 	_ = json.Unmarshal([]byte(altStr), &s.AltTitles)
 	_ = json.Unmarshal([]byte(histStr), &s.HistoricalCovers)
+	_ = json.Unmarshal([]byte(genresStr), &s.Genres)
 
 	return &s, nil
 }
@@ -71,11 +94,21 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 	altJSON, _ := json.Marshal(s.AltTitles)
 	histJSON, _ := json.Marshal(s.HistoricalCovers)
+	genresJSON, _ := json.Marshal(s.Genres)
+
+	query := `
+		INSERT INTO series (
+			anilist_id, mangadex_id, title, alt_titles, path, status, 
+			total_chapters, thumbnail, historical_covers, author, genres, description
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
 
 	res, err := DB.Exec(
-		"INSERT INTO series (anilist_id, mangadex_id, title, alt_titles, path, status, total_chapters, thumbnail, historical_covers) VALUES (?,?,?,?,?,?,?,?,?)",
-		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status, s.TotalChapters, s.Thumbnail, string(histJSON),
+		query,
+		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status,
+		s.TotalChapters, s.Thumbnail, string(histJSON), s.Author, string(genresJSON), s.Description,
 	)
+
 	if err != nil {
 		return err
 	}
