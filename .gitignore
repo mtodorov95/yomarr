@@ -38,3 +38,5 @@ config.yaml
 config.json
 downloads/
 temp/
+
+docker-compose.*

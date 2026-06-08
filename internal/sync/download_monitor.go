@@ -120,7 +120,7 @@ func (m *DownloadMonitor) importToLibrary(seriesTitle string, torrentName string
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".cbz" || ext == ".zip" || ext == ".rar" {
+		if ext == ".cbz" || ext == ".cbr" || ext == ".zip" || ext == ".rar" {
 			fileName := filepath.Base(path)
 			finalDestPath := filepath.Join(destDir, fileName)
 

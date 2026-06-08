@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { Series } from '../types'
 import { useToast } from '@/composables/useToast'
@@ -26,8 +26,23 @@ const series = ref<Series | null>(null)
 const groupedChapters = ref<GroupedChapter[]>([])
 const loading = ref(true)
 const searching = ref(false)
+const currentPage = ref(1)
+const itemsPerPage = ref(50)
+
+const totalPages = computed(() => {
+    return Math.ceil(groupedChapters.value.length / itemsPerPage.value) || 1
+})
+
+const paginatedChapters = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage.value
+    const end = start + itemsPerPage.value
+    return groupedChapters.value.slice(start, end)
+})
 
 const activeTab = ref<'chapters' | 'covers'>('chapters')
+
+watch(() => props.id, () => { currentPage.value = 1 })
+watch(activeTab, () => { currentPage.value = 1 })
 
 async function loadPageData() {
     loading.value = true
@@ -71,6 +86,18 @@ async function searchMissingChapters() {
 function getAssetUrl(filename: string | undefined): string {
     if (!series.value || !filename) return ''
     return `/api/assets?path=${encodeURIComponent(series.value.path + '/' + filename)}`
+}
+
+function getSortedVariants(variants: LanguageVariant[]) {
+    if (!variants) return []
+    return [...variants].sort((a, b) => a.language.localeCompare(b.language))
+}
+
+function getStatusClass(status: string | undefined): string {
+    const s = status?.toLowerCase()
+    if (s === 'downloaded') return 'is-downloaded'
+    if (s === 'downloading') return 'is-downloading'
+    return 'is-missing'
 }
 
 onMounted(loadPageData)
@@ -177,7 +204,7 @@ onMounted(loadPageData)
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="ch in groupedChapters" :key="ch.number" class="body-data-row">
+                                <tr v-for="ch in paginatedChapters" :key="ch.number" class="body-data-row">
                                     <td class="column-td font-bold text-white">
                                         Chapter {{ ch.number }}
                                     </td>
@@ -187,12 +214,12 @@ onMounted(loadPageData)
                                     <td class="column-td">
                                         <div class="badge-flex-layout">
                                             <div 
-                                                v-for="v in ch.variants" 
+                                                v-for="v in getSortedVariants(ch.variants)" 
                                                 :key="v.id"
                                                 class="badge-wrapper-node"
                                                 :title="v.file_path || 'No local source matched'"
                                             >
-                                                <span :class="['arr-status-tag', v.status?.toLowerCase() === 'downloaded' ? 'is-downloaded' : 'is-missing']">
+                                                <span :class="['arr-status-tag', getStatusClass(v.status)]">
                                                     <span class="lang-token-prefix">{{ v.language }}:</span> {{ v.status }}
                                                 </span>
                                             </div>
@@ -201,6 +228,46 @@ onMounted(loadPageData)
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                    <div v-if="totalPages > 1" class="arr-pagination-bar">
+                        <div class="pagination-info">
+                            Showing {{ (currentPage - 1) * itemsPerPage + 1 }}–{{ Math.min(currentPage * itemsPerPage, groupedChapters.length) }} of {{ groupedChapters.length }} chapters
+                        </div>
+                        <div class="pagination-actions">
+                            <button 
+                                @click="currentPage = 1" 
+                                :disabled="currentPage === 1"
+                                class="page-btn text-btn"
+                            >
+                                « First
+                            </button>
+                            <button 
+                                @click="currentPage--" 
+                                :disabled="currentPage === 1"
+                                class="page-btn"
+                            >
+                                ◀ Previous
+                            </button>
+                            
+                            <span class="page-indicator">
+                                Page <strong>{{ currentPage }}</strong> of {{ totalPages }}
+                            </span>
+
+                            <button 
+                                @click="currentPage++" 
+                                :disabled="currentPage === totalPages"
+                                class="page-btn"
+                            >
+                                Next ▶
+                            </button>
+                            <button 
+                                @click="currentPage = totalPages" 
+                                :disabled="currentPage === totalPages"
+                                class="page-btn text-btn"
+                            >
+                                Last »
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -571,6 +638,12 @@ onMounted(loadPageData)
     border: 1px solid rgba(239, 68, 68, 0.15);
 }
 
+.arr-status-tag.is-downloading {
+    background-color: rgba(245, 158, 11, 0.15); 
+    color: #f59e0b;                              
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
 .arr-covers-fluid-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -635,5 +708,74 @@ onMounted(loadPageData)
     font-style: italic;
     padding: 3rem 0;
     text-align: center;
+}
+
+.arr-pagination-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background-color: #111827;
+    border-top: 1px solid #1f2937;
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+
+@media (min-width: 640px) {
+    .arr-pagination-bar {
+        flex-direction: row;
+    }
+}
+
+.pagination-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-btn {
+    background-color: #1f2937;
+    border: 1px solid #374151;
+    color: #f3f4f6;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all 0.1s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+    background-color: #374151;
+    color: #ffffff;
+    border-color: #4b5563;
+}
+
+.page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.page-btn.text-btn {
+    background: transparent;
+    border-color: transparent;
+    color: #9ca3af;
+}
+
+.page-btn.text-btn:hover:not(:disabled) {
+    color: #ffffff;
+}
+
+.page-indicator {
+    padding: 0 0.5rem;
+    color: #9ca3af;
+}
+
+.page-indicator strong {
+    color: #38bdf8;
 }
 </style>

@@ -28,6 +28,7 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
 		       total_chapters, thumbnail, historical_covers, author, genres, description 
 		FROM series
+		ORDER BY title ASC
 	`
 
 	rows, err := DB.Query(query)

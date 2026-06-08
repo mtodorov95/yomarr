@@ -15,13 +15,13 @@ var (
 	yearRangeRegex = regexp.MustCompile(`(?i)[([ ]\d{4}\s*-\s*\d{4}[)\] ]`)
 
 	// Matches specific individual chapters: "Ch. 10", "- 10", "c040x1", "c24"
-	chSingleRegex = regexp.MustCompile(`(?i)(?:-\s+|ch(?:apter)?\.?\s+|\bc\.?\s*)(\d+(?:[\.x]\d+)?)`)
+	chSingleRegex    = regexp.MustCompile(`(?i)(?:-\s*|ch(?:apter)?\.?\s*|\bc\.?\s*)(\d+(?:[\.x]\d+)?)`)
 
 	// Matches ranges: "Ch 01-12", "c01-12", "05-15"
 	chRangeRegex = regexp.MustCompile(`(?i)(?:ch(?:apter)?\.?\s+|\bc\.?\s*)?(\d+(?:[\.x]\d+)?)\s*-\s*(\d+(?:[\.x]\d+)?)`)
 
 	// Matches volumes: "Vol.02", "v03", "Volume 4", "v01-05"
-	VolRegex = regexp.MustCompile(`(?i)(?:vol(?:ume)?\.?\s*|v)(\d+)(?:\s*-\s*(\d+))?`)
+	VolRegex = regexp.MustCompile(`(?i)(?:vol(?:ume)?\.?\s*|v)(\d+)(?:\s*-\s*(?:vol(?:ume)?\.?\s*|v)?(\d+))?`)
 
 	// Matches Japanese volume syntax variants like "第02巻", "第 2 巻", "第02-04巻"
 	VolJaRegex = regexp.MustCompile(`(?i)第\s*(\d+)\s*(?:-\s*(\d+)\s*)?巻`)

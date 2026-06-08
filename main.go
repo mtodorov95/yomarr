@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -105,8 +106,36 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fileServer := http.FileServer(http.FS(dist))
-	mux.Handle("/", fileServer)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        filePath := r.URL.Path
+        if filePath == "" || filePath == "/" {
+            filePath = "index.html"
+        } else if filePath[0] == '/' {
+            filePath = filePath[1:]
+        }
+
+        file, err := dist.Open(filePath)
+        if err == nil {
+            file.Close()
+            http.FileServer(http.FS(dist)).ServeHTTP(w, r)
+            return
+        }
+
+        indexFile, err := dist.Open("index.html")
+        if err != nil {
+            http.Error(w, "index.html not found in embedded assets", http.StatusInternalServerError)
+            return
+        }
+        defer indexFile.Close()
+
+        stat, err := indexFile.Stat()
+        if err != nil {
+            http.Error(w, "Failed to read index.html info", http.StatusInternalServerError)
+            return
+        }
+
+        http.ServeContent(w, r, "index.html", stat.ModTime(), indexFile.(io.ReadSeeker))
+    })
 
 	log.Printf("Server starting on port %s...", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
