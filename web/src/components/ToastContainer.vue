@@ -27,14 +27,14 @@ const { toasts, remove } = useToast()
 <style scoped>
 .toast-container {
   position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
+  bottom: 3.5rem;
+  left: 0.5rem;
   z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   width: 100%;
-  max-width: 24rem;
+  max-width: 18rem;
   pointer-events: none;
 }
 
@@ -81,17 +81,19 @@ const { toasts, remove } = useToast()
   font-size: 0.75rem;
   background-color: rgba(255, 255, 255, 0.2);
   pointer-events: none;
+  flex-shrink: 0;
 }
 
 .toast-message {
   margin: 0;
   flex: 1;
   pointer-events: none;
+  word-break: break-word;
 }
 
 .toast-slide-enter-from {
   opacity: 0;
-  transform: translateX(2rem);
+  transform: translateX(-2rem);
 }
 
 .toast-slide-leave-to {

@@ -55,12 +55,16 @@ async function handleImport(item: Series) {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                 </svg>
             </label>
-            <span class="mobile-brand-logo">YOMARR</span>
+            <RouterLink to="/" class="brand-logo-link">
+                <img src="/logo.png" alt="Yomarr Logo" class="brand-logo-img" />
+            </RouterLink>
         </header>
 
         <aside class="app-sidebar">
             <div class="sidebar-top">
-                <h1 class="sidebar-logo">YOMARR</h1>
+                <RouterLink to="/" class="brand-logo-link sidebar-logo-wrapper">
+                    <img src="/logo.png" alt="Yomarr Logo" class="brand-logo-img" />
+                </RouterLink>
                 <nav class="sidebar-nav">
                     <RouterLink to="/" class="nav-item" active-class="active-nav">
                         <span class="nav-icon">📚</span>
@@ -143,13 +147,6 @@ async function handleImport(item: Series) {
     height: 1.5rem;
 }
 
-.mobile-brand-logo {
-    font-size: 1.25rem;
-    font-weight: 900;
-    letter-spacing: -0.05em;
-    color: #60a5fa;
-}
-
 .app-sidebar {
     width: 240px;
     background-color: #1e293b;
@@ -163,6 +160,28 @@ async function handleImport(item: Series) {
     left: 0;
     z-index: 60;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.brand-logo-link {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
+
+.brand-logo-link:hover {
+    opacity: 0.85;
+}
+
+.brand-logo-img {
+    height: 3rem;
+    width: auto;
+    object-fit: contain;
+    border-radius: 3px;
+}
+
+.sidebar-logo-wrapper {
+    margin: 0 0 2rem 0.5rem;
 }
 
 .sidebar-top {

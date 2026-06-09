@@ -19,7 +19,9 @@ export function useToast() {
     }
 
     function addToast(message: string, type: ToastType = "info", duration: number = DEFAULT_DURATION) {
-        const id = crypto.randomUUID()
+        const id = typeof crypto !== 'undefined' && crypto.randomUUID 
+            ? crypto.randomUUID() 
+            : `toast-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const toast: Toast = { id, message, type, duration }
 
         toasts.value.push(toast)
