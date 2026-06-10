@@ -115,8 +115,10 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 
 		if bestTorrent != nil {
 			if downloadedTorrents[bestTorrent.InfoHash] {
-				ch.Status = models.ChapterDownloading
-				_ = e.ChapterStore.Update(ch)
+				if bestTorrent.Language == ch.Language {
+					ch.Status = models.ChapterDownloading
+					_ = e.ChapterStore.Update(ch)
+				}
 				continue
 			}
 
@@ -136,8 +138,10 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			}
 
 			downloadedTorrents[bestTorrent.InfoHash] = true
-			ch.Status = models.ChapterDownloading
-			_ = e.ChapterStore.Update(ch)
+			if bestTorrent.Language == ch.Language {
+				ch.Status = models.ChapterDownloading
+				_ = e.ChapterStore.Update(ch)
+			}
 		} else {
 			log.Printf("No available candidate on Nyaa matches %s Ch %g for language [%s]",
 				series.Title, ch.Number, ch.Language)
