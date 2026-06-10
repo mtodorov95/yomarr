@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/mtodorov95/yomarr/internal/db"
@@ -37,8 +39,17 @@ func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
 		h.getAll(w)
 	case http.MethodPost:
 		h.create(w, r)
+	case http.MethodPut:
+		h.update(w, r)
 	case http.MethodDelete:
 		idStr := r.URL.Query().Get("id")
+		coverFile := r.URL.Query().Get("cover")
+
+		if idStr != "" && coverFile != "" {
+			h.deleteCover(w, r, idStr, coverFile)
+			return
+		}
+		
 		if idStr != "" {
 			h.delete(w, idStr)
 			return
@@ -143,6 +154,29 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(s)
 }
 
+func (h *SeriesHandler) update(w http.ResponseWriter, r *http.Request) {
+	var s models.Series
+	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if s.ID == 0 {
+		http.Error(w, "Missing structural identifier 'id' target field required for updates", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Store.Update(&s); err != nil {
+		log.Printf("[API Error] Failed committing series entity update: %v", err)
+		http.Error(w, "Internal server data persistence failure", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(s)
+}
+
 func (h *SeriesHandler) searchMetadata(w http.ResponseWriter, query string) {
 	results, err := h.Metadata.Search(query)
 	if err != nil {
@@ -165,4 +199,38 @@ func (h *SeriesHandler) delete(w http.ResponseWriter, idStr string) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *SeriesHandler) deleteCover(w http.ResponseWriter, r *http.Request, idStr string, coverFile string) {
+    id, err := strconv.ParseInt(idStr, 10, 64)
+    if err != nil {
+        http.Error(w, "Invalid series ID format", http.StatusBadRequest)
+        return
+    }
+
+    s, err := h.Store.GetById(id)
+    if err != nil || s == nil {
+        http.Error(w, "Series target record not found", http.StatusNotFound)
+        return
+    }
+
+    fullPath := filepath.Join(s.Path, coverFile)
+    _ = os.Remove(fullPath)
+
+    var updatedCovers []string
+    for _, c := range s.HistoricalCovers {
+        if c != coverFile {
+            updatedCovers = append(updatedCovers, c)
+        }
+    }
+    s.HistoricalCovers = updatedCovers
+
+    if err := h.Store.Update(s); err != nil {
+        log.Printf("[API Error] Failed saving post-delete cover manifest: %v", err)
+        http.Error(w, "Internal server data sync failure", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(s)
 }

@@ -4,7 +4,13 @@ import { computed } from 'vue'
 
 const props = defineProps<{
     covers: string[] | undefined
+    currentThumbnail: string | undefined;
     seriesPath: string | undefined
+}>()
+
+const emit = defineEmits<{
+    (e: 'promote', coverFile: string): void
+    (e: 'remove', coverFile: string): void
 }>()
 
 const hasCovers = computed(() => props.covers && props.covers.length > 0)
@@ -17,24 +23,48 @@ const hasCovers = computed(() => props.covers && props.covers.length > 0)
                 v-for="(coverFile, index) in covers" 
                 :key="index" 
                 class="arr-cover-archive-card"
+                :class="{ 'is-primary-border': coverFile === currentThumbnail }"
             >
-            <a 
+                <a 
                     :href="getAssetUrl(coverFile, seriesPath)" 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    class="archive-image-link"
+                    class="archive-image-wrapper"
                 >
-                <div class="archive-image-wrapper">
                     <img 
                         :src="getAssetUrl(coverFile, seriesPath)" 
                         alt="Volume Artwork Variant" 
                         class="archive-raw-img" 
                         loading="lazy"
                     />
-                </div>
-            </a>
+
+                    <div class="cover-hover-overlay">
+                        <div class="action-buttons-row">
+                            <button 
+                                v-if="coverFile !== currentThumbnail"
+                                @click.stop.prevent="emit('promote', coverFile)"
+                                class="overlay-icon-btn promote"
+                                title="Set as Main Cover"
+                            >
+                                ⭐
+                            </button>
+                            <span v-else class="active-badge-pill" title="Active Main Cover">⭐</span>
+
+                            <button 
+                                @click.stop.prevent="emit('remove', coverFile)"
+                                :disabled="coverFile === currentThumbnail"
+                                class="overlay-icon-btn delete"
+                                title="Delete Cover"
+                            >
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                </a>
+                
                 <div class="archive-label-tag">
                     Variant {{ index + 1 }}
+                    <span v-if="coverFile === currentThumbnail" class="primary-label">(Active)</span>
                 </div>
             </div>
         </div>
@@ -53,42 +83,43 @@ const hasCovers = computed(() => props.covers && props.covers.length > 0)
 
 .arr-covers-fluid-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 1.25rem;
 }
 
 .arr-cover-archive-card {
     background-color: #111827;
     border: 1px solid #1f2937;
-    border-radius: 0.25rem;
+    border-radius: 0.375rem;
     padding: 0.4rem;
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    transition: transform 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .arr-cover-archive-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-4px);
 }
 
-.archive-image-link {
-    display: block;
-    width: 100%;
-    cursor: pointer;
+.arr-cover-archive-card.is-primary-border {
+    border-color: #eab308;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.arr-cover-archive-card:hover.is-primary-border {
+    box-shadow: 0 10px 15px -3px rgba(234, 179, 8, 0.2);
 }
 
 .archive-image-wrapper {
+    display: block;
     width: 100%;
     aspect-ratio: 2 / 3;
     overflow: hidden;
-    border-radius: 0.125rem;
+    border-radius: 0.25rem;
     background-color: #030712;
-    transition: opacity 0.2s ease;
-}
-
-.archive-image-link:hover .archive-image-wrapper {
-    opacity: 0.85;
+    position: relative;
+    cursor: pointer;
 }
 
 .archive-raw-img {
@@ -97,11 +128,102 @@ const hasCovers = computed(() => props.covers && props.covers.length > 0)
     object-fit: cover;
 }
 
+.cover-hover-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(15, 23, 42, 0.1), rgba(15, 23, 42, 0.85));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.5rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.archive-image-wrapper:hover .cover-hover-overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.action-buttons-row {
+    display: flex;
+    width: 100%;
+    gap: 0.4rem;
+    justify-content: center;
+    align-items: center;
+}
+
+.overlay-icon-btn {
+    flex: 1;
+    height: 2.2rem;
+    font-size: 0.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.overlay-icon-btn.promote {
+    background-color: #1e293b;
+    border-color: #451a03;
+}
+
+.overlay-icon-btn.promote:hover {
+    background-color: #eab308;
+    border-color: #facc15;
+}
+
+.overlay-icon-btn.delete {
+    background-color: #1e293b;
+    border-color: #450a0a;
+}
+
+.overlay-icon-btn.delete:hover:not(:disabled) {
+    background-color: #991b1b;
+    border-color: #ef4444;
+}
+
+.overlay-icon-btn:disabled {
+    background-color: #1f2937;
+    border-color: #374151;
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.active-badge-pill {
+    flex: 1;
+    height: 2.2rem;
+    font-size: 0.7rem;
+    background-color: rgba(234, 179, 8, 0.1);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    color: #eab308;
+    border-radius: 0.25rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
 .archive-label-tag {
     font-size: 0.7rem;
     color: #9ca3af;
     text-align: center;
     font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding-top: 0.25rem;
+}
+
+.primary-label {
+    color: #eab308;
+    font-size: 0.65rem;
 }
 
 .empty-dashed-box {

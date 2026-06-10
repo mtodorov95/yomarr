@@ -20,17 +20,17 @@ func DownloadSeriesCovers(client *http.Client, seriesPath string, remoteThumbnai
 	}
 
 	localThumbnailRel := ""
-	if remoteThumbnail != "" {
-		ext := filepath.Ext(remoteThumbnail)
-		if ext == "" {
-			ext = ".jpg"
-		}
-
-		destPath := filepath.Join(coversDir, "cover"+ext)
-		if err := downloadFile(client, remoteThumbnail, destPath); err == nil {
-			localThumbnailRel = filepath.Join("Covers", "cover"+ext)
-		}
-	}
+    if remoteThumbnail != "" {
+        parts := strings.Split(remoteThumbnail, "/")
+        fileName := parts[len(parts)-1]
+        
+        if fileName != "" {
+            destPath := filepath.Join(coversDir, fileName)
+            if err := downloadFile(client, remoteThumbnail, destPath); err == nil {
+                localThumbnailRel = filepath.Join("Covers", fileName)
+            }
+        }
+    }
 
 	var localHistoricalsRel []string
 	for _, remoteURL := range remoteHistoricals {

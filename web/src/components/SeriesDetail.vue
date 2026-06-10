@@ -72,6 +72,58 @@ async function searchMissingChapters() {
     }
 }
 
+async function updateSeriesCovers(updatedCovers: string[], updatedThumbnail: string) {
+    if (!series.value) return
+
+    const previousCovers = [...(series.value.historical_covers ?? [])]
+    const previousThumbnail = series.value.thumbnail
+
+    series.value.historical_covers = updatedCovers
+    series.value.thumbnail = updatedThumbnail
+
+    try {
+        const res = await fetch('/api/series', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(series.value)
+        })
+
+        if (!res.ok) throw new Error('Failed updating series covers records')
+        toast.info('Covers updated successfully')
+    } catch (e) {
+        console.error(e)
+        toast.error('Failed to sync cover updates')
+        if (series.value) {
+            series.value.historical_covers = previousCovers
+            series.value.thumbnail = previousThumbnail
+        }
+    }
+}
+
+function handlePromoteCover(coverFile: string) {
+    if (!series.value) return
+    updateSeriesCovers(series.value.historical_covers ?? [], coverFile)
+}
+
+async function handleRemoveCover(coverFile: string) {
+    if (!series.value) return
+
+    try {
+        const seriesId = series.value.id
+        const res = await fetch(`/api/series?id=${seriesId}&cover=${encodeURIComponent(coverFile)}`, {
+            method: 'DELETE'
+        })
+
+        if (!res.ok) throw new Error('Delete execution rejected')
+        
+        series.value = await res.json()
+        toast.info('Cover wiped from storage disk')
+    } catch (e) {
+        console.error(e)
+        toast.error('Failed to eliminate cover artwork')
+    }
+}
+
 onMounted(loadPageData)
 </script>
 
@@ -171,7 +223,10 @@ onMounted(loadPageData)
             <SeriesCovers 
                 v-else-if="activeTab === 'covers'" 
                 :covers="series.historical_covers" 
+                :currentThumbnail="series.thumbnail"
                 :seriesPath="series.path"
+                @promote="handlePromoteCover"
+                @remove="handleRemoveCover"
             />
         </template>
     </div>

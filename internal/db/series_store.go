@@ -18,6 +18,7 @@ type SeriesStore interface {
 	GetAll() ([]models.Series, error)
 	GetById(id int64) (*models.Series, error)
 	Insert(s *models.Series) error
+	Update(s *models.Series) error
 	Delete(id int64) error
 }
 
@@ -115,6 +116,27 @@ func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 	}
 	s.ID, _ = res.LastInsertId()
 	return nil
+}
+
+func (store *SQLiteSeriesStore) Update(s *models.Series) error {
+	altJSON, _ := json.Marshal(s.AltTitles)
+	histJSON, _ := json.Marshal(s.HistoricalCovers)
+	genresJSON, _ := json.Marshal(s.Genres)
+
+	query := `
+		UPDATE series 
+			SET anilist_id = ?, mangadex_id = ?, title = ?, alt_titles = ?, path = ?, status = ?, 
+			total_chapters = ?, thumbnail = ?, historical_covers = ?, author = ?, genres = ?, description = ?
+		WHERE id = ?
+	`
+
+	_, err := DB.Exec(
+		query,
+		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status,
+		s.TotalChapters, s.Thumbnail, string(histJSON), s.Author, string(genresJSON), s.Description, s.ID,
+	)
+
+	return err
 }
 
 func (store *SQLiteSeriesStore) Delete(id int64) error {

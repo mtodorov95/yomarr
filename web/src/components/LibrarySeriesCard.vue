@@ -42,7 +42,7 @@ function getImageUrl(): string {
                     class="overlay-action-btn delete"
                     title="Remove Target Series"
                 >
-                    🗑️ Remove
+                    🗑️
                 </button>
             </div>
 

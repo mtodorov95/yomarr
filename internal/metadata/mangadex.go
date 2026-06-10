@@ -37,6 +37,7 @@ type mdMangaAttributes struct {
 	Links       map[string]string   `json:"links"`
 	Description mdLocalizedString   `json:"description"`
 	Tags        []mdTag             `json:"tags"`
+	Year        int64               `json:"year"`
 }
 
 type mdMangaData struct {
@@ -156,6 +157,18 @@ func getMDAuthor(relationships []mdRelationship) *string {
 	return artistName
 }
 
+func getMDArtist(relationships []mdRelationship) *string {
+	var artistName *string
+	for _, rel := range relationships {
+		if rel.Type == "artist" && rel.Attributes != nil {
+			if name, ok := rel.Attributes["name"].(string); ok {
+				artistName = &name
+			}
+		}
+	}
+	return artistName
+}
+
 func mapMDStatus(status string) models.SeriesStatus {
 	switch status {
 	case "ongoing", "hiatus":
@@ -196,14 +209,24 @@ func (p *MangaDexProvider) fetchAllCovers(mangaID string) (string, []string, err
 
 	var primaryCover string
 	var historicalCovers []string
+	var highestVolume float64 = -1.0
 
 	for _, c := range coverRes.Data {
 		coverURL := fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s", mangaID, c.Attributes.FileName)
+		historicalCovers = append(historicalCovers, coverURL)
 
-		if c.Attributes.Volume == "1" || c.Attributes.Volume == "" {
+		if primaryCover == "" {
 			primaryCover = coverURL
 		}
-		historicalCovers = append(historicalCovers, coverURL)
+
+		if c.Attributes.Volume != "" {
+			if volNum, err := strconv.ParseFloat(c.Attributes.Volume, 64); err == nil {
+				if volNum >= highestVolume {
+					highestVolume = volNum
+					primaryCover = coverURL
+				}
+			}
+		}
 	}
 
 	if primaryCover == "" && len(historicalCovers) > 0 {
@@ -278,8 +301,9 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			Thumbnail:        primaryCover,
 			HistoricalCovers: make([]string, 0),
 			Author:           getMDAuthor(item.Relationships),
-			Genres:           getMDGenres(item.Attributes.Tags),
-			Description:      getMDDescription(item.Attributes.Description),
+			// Artist: getMDArtist(item.Relationships),
+			Genres:      getMDGenres(item.Attributes.Tags),
+			Description: getMDDescription(item.Attributes.Description),
 		})
 	}
 

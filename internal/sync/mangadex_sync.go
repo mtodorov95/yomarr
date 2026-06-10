@@ -29,23 +29,6 @@ func (e *MangaDexSyncEngine) SyncChapters(seriesID int64, mangadexID string) err
 		return fmt.Errorf("metadata fetch failed: %w", err)
 	}
 
-	langCounts := make(map[string]int)
-	for _, ch := range remoteChapters {
-		if ch.Language != "" {
-			langCounts[ch.Language]++
-		}
-	}
-
-	bestLang := "en"
-	maxCount := 0
-	for lang, count := range langCounts {
-		if count > maxCount {
-			maxCount = count
-			bestLang = lang
-		}
-	}
-	log.Printf("[Sync Engine] Selected source of truth language: [%s] with %d metadata rows", bestLang, maxCount)
-
 	existing, err := e.ChapterStore.GetBySeriesId(seriesID)
 	if err != nil {
 		return fmt.Errorf("failed fetching local cache: %w", err)
@@ -57,25 +40,33 @@ func (e *MangaDexSyncEngine) SyncChapters(seriesID int64, mangadexID string) err
 		existingMap[key] = true
 	}
 
+	type chapterMeta struct {
+        Volume *int
+    }
+    globalChapterNumbers := make(map[float64]chapterMeta)
+
+    for _, rCh := range remoteChapters {
+        var volPtr *int
+        if rCh.Volume != nil && *rCh.Volume != "" {
+            if v, err := strconv.Atoi(*rCh.Volume); err == nil {
+                volPtr = &v
+            }
+        }
+
+        meta, exists := globalChapterNumbers[rCh.Number]
+        if !exists || (meta.Volume == nil && volPtr != nil) {
+            globalChapterNumbers[rCh.Number] = chapterMeta{Volume: volPtr}
+        }
+    }
+
 	var insertedCount int
-	for _, rCh := range remoteChapters {
-		if rCh.Language != "en" && rCh.Language != bestLang {
-			continue
-		}
-
-		var volPtr *int
-		if rCh.Volume != nil && *rCh.Volume != "" {
-			if v, err := strconv.Atoi(*rCh.Volume); err == nil {
-				volPtr = &v
-			}
-		}
-
-		enKey := fmt.Sprintf("%f-en", rCh.Number)
+	for chNum, meta := range globalChapterNumbers {
+		enKey := fmt.Sprintf("%f-en", chNum)
 		if !existingMap[enKey] {
 			newChapter := &models.Chapters{
 				SeriesID: seriesID,
-				Number:   rCh.Number,
-				Volume:   volPtr,
+				Number:   chNum,
+				Volume:   meta.Volume,
 				Status:   models.ChapterMissing,
 				FilePath: nil,
 				Language: "en",
@@ -88,12 +79,12 @@ func (e *MangaDexSyncEngine) SyncChapters(seriesID int64, mangadexID string) err
 			insertedCount++
 		}
 
-		rawKey := fmt.Sprintf("%f-raw", rCh.Number)
+		rawKey := fmt.Sprintf("%f-raw", chNum)
 		if !existingMap[rawKey] {
 			rawChapter := &models.Chapters{
 				SeriesID: seriesID,
-				Number:   rCh.Number,
-				Volume:   volPtr,
+				Number:   chNum,
+				Volume:   meta.Volume,
 				Status:   models.ChapterMissing,
 				FilePath: nil,
 				Language: "raw",
