@@ -15,6 +15,7 @@ import (
 	"github.com/mtodorov95/yomarr/internal/download"
 	"github.com/mtodorov95/yomarr/internal/indexer"
 	"github.com/mtodorov95/yomarr/internal/models"
+	"github.com/mtodorov95/yomarr/internal/utils"
 )
 
 const ImportedTag = "imported"
@@ -69,25 +70,16 @@ func torrentMatchesSeries(torrentNameLower string, series models.Series) bool {
 	return false
 }
 
-func (m *DownloadMonitor) importToLibrary(seriesTitle string, torrentName string, language string) (string, error) {
+func (m *DownloadMonitor) importToLibrary(series models.Series, torrentName string, language string) (string, error) {
 	downloadRoot := os.Getenv("MANGA_DOWNLOAD_ROOT")
 	if downloadRoot == "" {
 		downloadRoot = "/downloads"
 	}
-	libraryRoot := os.Getenv("MANGA_LIBRARY_ROOT")
-	if libraryRoot == "" {
-		libraryRoot = "/Manga"
-	}
 
 	srcPath := filepath.Join(downloadRoot, torrentName)
 
-	langDir := "EN"
-	if strings.ToLower(language) == "raw" {
-		langDir = "RAW"
-	}
-
-	destDir := filepath.Join(libraryRoot, seriesTitle, langDir)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	destDir, err := utils.EnsureLanguageDirectory(series.Path, language)
+	if err != nil {
 		return "", err
 	}
 
@@ -278,7 +270,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 
 					log.Printf("[Monitor] Multi-volume or batch release finished for: %s! Processing library mapping...", series.Title)
 
-					finalLibraryPath, err := m.importToLibrary(series.Title, torrent.Name, torrentLang)
+					finalLibraryPath, err := m.importToLibrary(series, torrent.Name, torrentLang)
 					if err != nil {
 						log.Printf("[Monitor Error] Failed importing file to library: %v", err)
 						continue
@@ -354,7 +346,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 			if isMatch {
 				log.Printf("[Monitor] Torrent finished! Marking Ch %g as Downloaded: %s", ch.Number, torrent.Name)
 
-				finalLibraryPath, err := m.importToLibrary(series.Title, torrent.Name, torrentLang)
+				finalLibraryPath, err := m.importToLibrary(series, torrent.Name, torrentLang)
 				if err != nil {
 					log.Printf("[Monitor Error] Failed importing file to library: %v", err)
 					continue

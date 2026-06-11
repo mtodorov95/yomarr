@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/mtodorov95/yomarr/internal/metadata"
 	"github.com/mtodorov95/yomarr/internal/models"
 	"github.com/mtodorov95/yomarr/internal/sync"
+	"github.com/mtodorov95/yomarr/internal/utils"
 )
 
 type SeriesHandler struct {
@@ -123,6 +123,16 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	libraryRoot := filepath.Dir(req.Path)
+
+	finalPath, err := utils.EnsureSeriesDirectory(libraryRoot, &s)
+	if err != nil {
+		log.Printf("[API Error] Filesystem allocation aborted: %v", err)
+		http.Error(w, "Failed creating local storage directory", http.StatusInternalServerError)
+		return
+	}
+	s.Path = finalPath
+
 	if s.Path != "" && (s.Thumbnail != "" || len(s.HistoricalCovers) > 0) {
 		log.Printf("[API] Downloading remote imagery locally into: %s/Covers", s.Path)
 		localThumb, localHists, err := download.DownloadSeriesCovers(
@@ -214,8 +224,7 @@ func (h *SeriesHandler) deleteCover(w http.ResponseWriter, r *http.Request, idSt
         return
     }
 
-    fullPath := filepath.Join(s.Path, coverFile)
-    _ = os.Remove(fullPath)
+	_ = utils.DeleteSeriesFile(s.Path, coverFile)
 
     var updatedCovers []string
     for _, c := range s.HistoricalCovers {
