@@ -29,7 +29,12 @@ jobs:
           - /var/run/docker.sock:/var/run/docker.sock
         with:
           entrypoint: /bin/sh
-          args: -c "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ gitea.server_url }} --username GITEA_ACTOR --password-stdin"
+          args: >-
+            -c "
+            REGISTRY_HOST=\$(echo \"${{ gitea.server_url }}\" | sed -e 's|^[^/]*//||' -e 's|:3000||') &&
+            echo \"Logging into clean registry host: \${REGISTRY_HOST}\" &&
+            echo '${{ secrets.GITEA_TOKEN }}' | docker login \${REGISTRY_HOST} --username ${{ gitea.actor }} --password-stdin
+            "
 
       - name: Build and Push Docker Image
         uses: docker://docker:cli
@@ -40,7 +45,7 @@ jobs:
           args: >-
             -c "
             VERSION_TAG=\"${GITHUB_REF#refs/tags/}\" &&
-            REGISTRY_HOST=\$(echo \"${{ gitea.server_url }}\" | sed -e 's|^[^/]*//||') &&
+            REGISTRY_HOST=\$(echo \"${{ gitea.server_url }}\" | sed -e 's|^[^/]*//||' -e 's|:3000||') &&
             IMAGE_PATH=\"\${REGISTRY_HOST}/${{ gitea.repository }}\" &&
             IMAGE_PATH=\$(echo \"\$IMAGE_PATH\" | tr '[:upper:]' '[:lower:]') &&
             echo \"Building image for version: \${VERSION_TAG} at path \${IMAGE_PATH}\" &&
