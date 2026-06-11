@@ -1,0 +1,70 @@
+name: Release and Docker Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 1. Setup Go environment for testing
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run Tests
+        run: go test -v ./...
+
+      # 2. Set up Buildx for caching and optimized compilation
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      # 3. Log into your self-hosted Gitea Container Registry
+      - name: Log in to Gitea Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ gitea.server_url }}
+          username: ${{ gitea.actor }}
+          password: ${{ secrets.GITEA_TOKEN }}
+
+      # 4. Extract metadata tailored to Gitea's registry syntax
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ gitea.server_url }}/${{ gitea.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=latest
+
+      # 5. Build and Push Docker Image
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64 
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # 6. Generate an Official Gitea Release with Changelog
+      - name: Create Gitea Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Uses the built-in Gitea token to authenticate the API release call
+          token: ${{ secrets.GITEA_TOKEN }}
+          generate_release_notes: true
