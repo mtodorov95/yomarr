@@ -37,7 +37,9 @@ type mdMangaAttributes struct {
 	Links       map[string]string   `json:"links"`
 	Description mdLocalizedString   `json:"description"`
 	Tags        []mdTag             `json:"tags"`
-	Year        int64               `json:"year"`
+	Year        *int64              `json:"year"`
+	LastChapter *string             `json:"lastChapter"`
+	LastVolume  *string             `json:"lastVolume"`
 }
 
 type mdMangaData struct {
@@ -141,38 +143,33 @@ func getMDGenres(tags []mdTag) []string {
 }
 
 func getMDAuthor(relationships []mdRelationship) *string {
-	var artistName *string
 	for _, rel := range relationships {
 		if rel.Type == "author" && rel.Attributes != nil {
 			if name, ok := rel.Attributes["name"].(string); ok && name != "" {
 				return &name
 			}
 		}
-		if rel.Type == "artist" && rel.Attributes != nil {
-			if name, ok := rel.Attributes["name"].(string); ok && name != "" {
-				artistName = &name
-			}
-		}
 	}
-	return artistName
+	return nil
 }
 
 func getMDArtist(relationships []mdRelationship) *string {
-	var artistName *string
 	for _, rel := range relationships {
 		if rel.Type == "artist" && rel.Attributes != nil {
-			if name, ok := rel.Attributes["name"].(string); ok {
-				artistName = &name
+			if name, ok := rel.Attributes["name"].(string); ok && name != "" {
+				return &name
 			}
 		}
 	}
-	return artistName
+	return nil
 }
 
 func mapMDStatus(status string) models.SeriesStatus {
 	switch status {
-	case "ongoing", "hiatus":
+	case "ongoing":
 		return models.SeriesOngoing
+	case "hiatus":
+		return models.SeriesHiatus
 	case "completed":
 		return models.SeriesCompleted
 	case "cancelled":
@@ -301,9 +298,11 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			Thumbnail:        primaryCover,
 			HistoricalCovers: make([]string, 0),
 			Author:           getMDAuthor(item.Relationships),
-			// Artist: getMDArtist(item.Relationships),
-			Genres:      getMDGenres(item.Attributes.Tags),
-			Description: getMDDescription(item.Attributes.Description),
+			Artist:           getMDArtist(item.Relationships),
+			Genres:           getMDGenres(item.Attributes.Tags),
+			Description:      getMDDescription(item.Attributes.Description),
+			LastChapter:      item.Attributes.LastChapter,
+			LastVolume:       item.Attributes.LastVolume,
 		})
 	}
 
@@ -347,6 +346,12 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		log.Printf("[Metadata Warning] Failed retrieving covers for %s: %v", mdID, err)
 	}
 
+	var yearPtr *int
+	if res.Data.Attributes.Year != nil {
+		y := int(*res.Data.Attributes.Year)
+		yearPtr = &y
+	}
+
 	return &models.Series{
 		MangadexID:       &mdID,
 		AnilistID:        alIDPtr,
@@ -358,6 +363,10 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		Author:           getMDAuthor(res.Data.Relationships),
 		Genres:           getMDGenres(res.Data.Attributes.Tags),
 		Description:      getMDDescription(res.Data.Attributes.Description),
+		Artist:           getMDArtist(res.Data.Relationships),
+		Year:             yearPtr,
+		LastChapter:      res.Data.Attributes.LastChapter,
+		LastVolume:       res.Data.Attributes.LastVolume,
 	}, nil
 }
 

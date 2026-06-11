@@ -4,6 +4,7 @@ type SeriesStatus string
 
 const (
 	SeriesOngoing     SeriesStatus = "Ongoing"
+	SeriesHiatus      SeriesStatus = "Hiatus"
 	SeriesCompleted   SeriesStatus = "Completed"
 	SeriesUnmonitored SeriesStatus = "Unmonitored"
 )

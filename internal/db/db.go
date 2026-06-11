@@ -39,7 +39,11 @@ func createTables() {
 		historical_covers TEXT DEFAULT '[]',
 		author TEXT DEFAULT NULL,
 		genres TEXT DEFAULT '[]',
-		description TEXT DEFAULT NULL
+		description TEXT DEFAULT NULL,
+		artist TEXT DEFAULT NULL,
+		year INTEGER DEFAULT NULL,
+		last_chapter TEXT DEFAULT NULL,
+		last_volume TEXT DEFAULT NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS chapters (

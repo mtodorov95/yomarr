@@ -18,6 +18,10 @@ type Series struct {
 	Author           *string      `json:"author"`
 	Genres           []string     `json:"genres"`
 	Description      *string      `json:"description"`
+	Artist           *string      `json:"artist"`
+	Year             *int         `json:"year"`
+	LastChapter      *string      `json:"last_chapter"`
+	LastVolume       *string      `json:"last_volume"`
 }
 
 type Chapters struct {
