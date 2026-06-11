@@ -29,6 +29,7 @@ const series = ref<Series | null>(null)
 const groupedChapters = ref<GroupedChapter[]>([])
 const loading = ref(true)
 const searching = ref(false)
+const refreshing = ref(false)
 
 const activeTab = ref<'chapters' | 'covers'>('chapters')
 
@@ -52,6 +53,29 @@ async function loadPageData() {
         toast.error("Failed to fetch library manifest records")
     } finally {
         loading.value = false
+    }
+}
+
+async function refreshMetadata() {
+    if (!series.value?.id) return
+    refreshing.value = true
+    try {
+        const res = await fetch(`/api/series?id=${series.value.id}&action=refresh`, {
+            method: 'POST'
+        })
+        if (!res.ok) throw new Error('Refresh request failed')
+        
+        const updatedData = await res.json()
+        if (updatedData) {
+            series.value = updatedData
+        }
+        
+        toast.success('Metadata and art synced from upstream providers!')
+    } catch (e) {
+        console.error(e)
+        toast.error('Failed to refresh metadata')
+    } finally {
+        refreshing.value = false
     }
 }
 
@@ -159,14 +183,25 @@ onMounted(loadPageData)
                             ← Back to Library
                         </RouterLink>
 
-                        <button 
-                            @click="searchMissingChapters"
-                            :disabled="searching"
-                            class="arr-action-btn search-accent"
-                        >
-                            <span>{{ searching ? '⏳' : '🔍' }}</span>
-                            {{ searching ? 'Searching missing...' : 'Search Missing' }}
-                        </button>
+                        <div class="banner-actions-wrapper" >
+                            <button 
+                                @click="refreshMetadata"
+                                :disabled="refreshing || searching"
+                                class="arr-action-btn refresh-accent"
+                            >
+                                <span>{{ refreshing ? '⏳' : '🔄' }}</span>
+                                {{ refreshing ? 'Syncing...' : 'Refresh Metadata' }}
+                            </button>
+
+                            <button 
+                                @click="searchMissingChapters"
+                                :disabled="searching || refreshing"
+                                class="arr-action-btn search-accent"
+                            >
+                                <span>{{ searching ? '⏳' : '🔍' }}</span>
+                                {{ searching ? 'Searching missing...' : 'Search Missing' }}
+                            </button>
+                        </div>
                     </div>
 
                     <div class="series-identity-block">
@@ -329,6 +364,11 @@ onMounted(loadPageData)
     background-color: #4b5563;
 }
 
+.banner-actions-wrapper {
+    display: inline-flex;
+    gap: 0.5rem;
+}
+
 .arr-action-btn {
     background-color: #2563eb;
     border: 1px solid transparent;
@@ -350,6 +390,15 @@ onMounted(loadPageData)
 
 .arr-action-btn.search-accent:hover:not(:disabled) {
     background-color: #3b82f6;
+}
+
+.arr-action-btn.refresh-accent {
+    background-color: #4b5563;
+    border: 1px solid #6b7280;
+}
+
+.arr-action-btn.refresh-accent:hover:not(:disabled) {
+    background-color: #374151;
 }
 
 .arr-action-btn:disabled {

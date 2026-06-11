@@ -19,6 +19,7 @@ type SeriesHandler struct {
 	Store      db.SeriesStore
 	Metadata   metadata.Provider
 	SyncEngine *sync.MangaDexSyncEngine
+	Scanner    *sync.LibraryScanner
 }
 
 func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +39,14 @@ func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
 		// All
 		h.getAll(w)
 	case http.MethodPost:
+		idStr := r.URL.Query().Get("id")
+		action := r.URL.Query().Get("action")
+
+		if idStr != "" && action == "refresh" {
+			h.refresh(w, r, idStr)
+			return
+		}
+
 		h.create(w, r)
 	case http.MethodPut:
 		h.update(w, r)
@@ -162,6 +171,25 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(s)
+}
+
+func (h *SeriesHandler) refresh(w http.ResponseWriter, r *http.Request, idStr string) {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid series ID format", http.StatusBadRequest)
+		return
+	}
+
+	updatedSeries, err := h.Scanner.RefreshSeriesMetadata(id)
+	if err != nil {
+		log.Printf("[API Error] Metadata refresh task failed: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(updatedSeries)
 }
 
 func (h *SeriesHandler) update(w http.ResponseWriter, r *http.Request) {

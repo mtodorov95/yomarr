@@ -54,6 +54,10 @@ func DownloadSeriesCovers(client *http.Client, seriesPath string, remoteThumbnai
 }
 
 func downloadFile(client *http.Client, url string, dest string) error {
+	if info, err := os.Stat(dest); err == nil && info.Size() > 0 {
+		return nil
+	}
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err

@@ -60,17 +60,19 @@ func main() {
 		log.Printf("Warning: Could not connect to qbittorrent client: %v", err)
 	}
 	// Sync
-	scanner := sync.NewLibraryScanner(chapterStore, seriesStore)
-	if err := scanner.ScanLibrary(); err != nil {
-		log.Printf("[Error] Initial library boot scan failed: %v", err)
-	}
-	scanner.StartBackgroundScan(6 * time.Hour)
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
 	nyaaEngine := sync.NewNyaaSyncEngine(chapterStore, seriesStore, nyaaIndexer, qbClient)
 	if qbClient != nil {
 		monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, qbClient)
 		monitor.Start()
 	}
+
+	scanner := sync.NewLibraryScanner(chapterStore, seriesStore, aggregator, syncEngine)
+	if err := scanner.ScanLibrary(); err != nil {
+		log.Printf("[Error] Initial library boot scan failed: %v", err)
+	}
+	scanner.StartBackgroundScan(6 * time.Hour)
+	scanner.StartBackgroundMetadataRefresher(24 * time.Hour)
 
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)
@@ -79,6 +81,7 @@ func main() {
 		Store:      seriesStore,
 		Metadata:   aggregator,
 		SyncEngine: syncEngine,
+		Scanner: scanner,
 	}
 
 	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)

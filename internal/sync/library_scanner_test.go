@@ -81,6 +81,15 @@ func TestExtractChaptersFromArchive(t *testing.T) {
 			expectedChaps: map[float64]int{9.5: 2, 10: 2},
 		},
 		{
+			name:        "MangaDex Folders with Year Titles (Regression Guard)",
+			archiveName: "Fuufu Ijou Year Glitch.cbz",
+			internalFiles: []string{
+				"[MangaDex] Vol. 02 Ch. 009.5 - 2018 Good Couples Day Special [Striptease]/001.jpg",
+				"[MangaDex] Vol. 02 Ch. 009.5 - 2018 Good Couples Day Special [Striptease]/002.jpg",
+			},
+			expectedChaps: map[float64]int{9.5: 2},
+		},
+		{
 			name:        "Flat Raw Volume Pages Layout (Should be ignored)",
 			archiveName: "Fuufu Ijou, Koibito Miman. v02_RAW_FLAT.cbz",
 			internalFiles: []string{

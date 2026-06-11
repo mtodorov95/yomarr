@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,20 +13,52 @@ import (
 	"time"
 
 	"github.com/mtodorov95/yomarr/internal/db"
+	"github.com/mtodorov95/yomarr/internal/download"
 	"github.com/mtodorov95/yomarr/internal/indexer"
+	"github.com/mtodorov95/yomarr/internal/metadata"
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
 type LibraryScanner struct {
 	ChapterStore db.ChapterStore
 	SeriesStore  db.SeriesStore
+	Metadata     metadata.Provider
+	SyncEngine   *MangaDexSyncEngine
 }
 
-func NewLibraryScanner(cs db.ChapterStore, ss db.SeriesStore) *LibraryScanner {
+func NewLibraryScanner(cs db.ChapterStore, ss db.SeriesStore, md metadata.Provider, se *MangaDexSyncEngine) *LibraryScanner {
 	return &LibraryScanner{
 		ChapterStore: cs,
 		SeriesStore:  ss,
+		Metadata:     md,
+		SyncEngine:   se,
 	}
+}
+
+func (ls *LibraryScanner) StartBackgroundMetadataRefresher(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		log.Printf("[Scanner] Background metadata refresher started. Interval: %v", interval)
+		for range ticker.C {
+			log.Println("[Scanner] Starting global metadata and chapter refresh...")
+			
+			allSeries, err := ls.SeriesStore.GetAll()
+			if err != nil {
+				log.Printf("[Scanner Error] Could not fetch series lists: %v", err)
+				continue
+			}
+
+			for _, s := range allSeries {
+				log.Printf("[Scanner] Auto-refreshing details for: %s", s.Title)
+				if _, err := ls.RefreshSeriesMetadata(s.ID); err != nil {
+					log.Printf("[Scanner Error] Upstream sync failed for %s: %v", s.Title, err)
+				}
+				
+				time.Sleep(5 * time.Second)
+			}
+			log.Println("[Scanner] Global metadata sync cycle complete.")
+		}
+	}()
 }
 
 func (ls *LibraryScanner) StartBackgroundScan(interval time.Duration) {
@@ -95,10 +128,13 @@ func (ls *LibraryScanner) ScanLibrary() error {
 			}
 
 			if matchedSeries == nil {
+				folderPath := filepath.Join(libraryRoot, dir.Name())
+
 				newSeries := models.Series{
 					Title:  cleanTitle,
 					Year:   seriesYear,
 					Status: models.SeriesUnmonitored,
+					Path: folderPath,
 				}
 
 				if err := ls.SeriesStore.Insert(&newSeries); err != nil {
@@ -318,6 +354,9 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 // Matches: "- p086-087", "- p000", "_p050", " page 12", " p.012"
 var pageCleanerRegex = regexp.MustCompile(`(?i)[-_\s]p(?:age|[\s.])?\d+(?:\s*-\s*\d+)?`)
 
+// Matches 4-digit years bound by spaces, dashes, or brackets: e.g., "- 2018", "[2025]", " 1999 "
+var yearCleanerRegex = regexp.MustCompile(`(?i)[-_\s]*\[?\b(19\d{2}|20\d{2})\b\]?`)
+
 func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbackVol int) (map[float64]int, error) {
 	r, err := zip.OpenReader(archivePath)
 	if err != nil {
@@ -361,6 +400,7 @@ func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbac
 		}
 
 		cleanedName := pageCleanerRegex.ReplaceAllString(tokenToParse, " ")
+		cleanedName = yearCleanerRegex.ReplaceAllString(cleanedName, " ")
 
 		if volMatch := indexer.VolRegex.FindString(cleanedName); volMatch != "" {
 			cleanedName = strings.ReplaceAll(cleanedName, volMatch, " ")
@@ -385,6 +425,11 @@ func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbac
 				end = parsed.EndNum
 			}
 
+			if end-parsed.StartNum > 500 {
+				log.Printf("[Scanner Warning] Skipping suspicious chapter range : %v to %v in %s", parsed.StartNum, end, tokenToParse)
+				continue
+			}
+
 			for num := parsed.StartNum; num <= end; num++ {
 				chapterToVolumeMap[num] = targetVolume
 			}
@@ -392,4 +437,103 @@ func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbac
 	}
 
 	return chapterToVolumeMap, nil
+}
+
+func (ls *LibraryScanner) RefreshSeriesMetadata(id int64) (*models.Series, error) {
+	s, err := ls.SeriesStore.GetById(id)
+	if err != nil {
+		return nil, fmt.Errorf("database lookup failure: %w", err)
+	}
+	if s == nil {
+		return nil, fmt.Errorf("series with ID %d not found", id)
+	}
+
+	var targetMDID string
+	if s.MangadexID != nil && *s.MangadexID != "" {
+		targetMDID = *s.MangadexID
+	} else {
+		log.Printf("[Metadata Service] Missing MangaDex ID for %s. Executing search fallback...", s.Title)
+		results, err := ls.Metadata.Search(s.Title)
+		if err != nil {
+			return nil, fmt.Errorf("upstream search failed: %w", err)
+		}
+		if len(results) > 0 {
+			targetMDID = *results[0].MangadexID
+		}
+	}
+
+	if targetMDID == "" {
+		return nil, fmt.Errorf("could not map series %q against external MangaDex records", s.Title)
+	}
+
+	extSeries, err := ls.Metadata.GetDetails(targetMDID)
+	if err != nil {
+		return nil, fmt.Errorf("metadata aggregation fetch fail: %w", err)
+	}
+
+	s.Status = extSeries.Status
+	s.LastChapter = extSeries.LastChapter
+	s.LastVolume = extSeries.LastVolume
+	s.TotalChapters = extSeries.TotalChapters
+
+	if (s.MangadexID == nil || *s.MangadexID == "") && extSeries.MangadexID != nil {
+		s.MangadexID = extSeries.MangadexID
+	}
+	if (s.AnilistID == nil || *s.AnilistID == "") && extSeries.AnilistID != nil {
+		s.AnilistID = extSeries.AnilistID
+	}
+	if (s.Artist == nil || *s.Artist == "") && extSeries.Artist != nil {
+		s.Artist = extSeries.Artist
+	}
+	if (s.Author == nil || *s.Author == "") && extSeries.Author != nil {
+		s.Author = extSeries.Author
+	}
+	if (s.Description == nil || *s.Description == "") && extSeries.Description != nil {
+		s.Description = extSeries.Description
+	}
+	if s.Year == nil && extSeries.Year != nil {
+		s.Year = extSeries.Year
+	}
+	if len(s.Genres) == 0 && len(extSeries.Genres) > 0 {
+		s.Genres = extSeries.Genres
+	}
+
+	if s.Path != "" && (s.Thumbnail == "" || len(s.HistoricalCovers) == 0) {
+		thumbSrc := s.Thumbnail
+		if thumbSrc == "" {
+			thumbSrc = extSeries.Thumbnail
+		}
+		histSrc := s.HistoricalCovers
+		if len(histSrc) == 0 {
+			histSrc = extSeries.HistoricalCovers
+		}
+
+		if thumbSrc != "" || len(histSrc) > 0 {
+			log.Printf("[Metadata Service] Gathering missing tracking artwork down to: %s/Covers", s.Path)
+			localThumb, localHists, err := download.DownloadSeriesCovers(
+				http.DefaultClient,
+				s.Path,
+				thumbSrc,
+				histSrc,
+			)
+			if err != nil {
+				log.Printf("[Metadata Service Warning] Cover refresh incomplete for %s: %v", s.Title, err)
+			} else {
+				s.Thumbnail = localThumb
+				s.HistoricalCovers = localHists
+			}
+		}
+	}
+
+	if err := ls.SeriesStore.Update(s); err != nil {
+		return nil, fmt.Errorf("database updates sync failure: %w", err)
+	}
+
+	if s.MangadexID != nil && *s.MangadexID != "" {
+		if err := ls.SyncEngine.SyncChapters(s.ID, *s.MangadexID); err != nil {
+			log.Printf("[Metadata Service Warning] Non-fatal chapter tracking sync error for %s: %v", s.Title, err)
+		}
+	}
+
+	return s, nil
 }
