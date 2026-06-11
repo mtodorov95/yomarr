@@ -8,8 +8,6 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
-    container:
-      image: golang:1.23-bullseye
     permissions:
       contents: write
       packages: write
@@ -21,6 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Tests
+        uses: docker://golang:1.23-bullseye
         run: go test -v ./...
 
       - name: Log in to Gitea Container Registry
