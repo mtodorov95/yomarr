@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Tests
-        uses: docker://golang:1.23-bullseye
+        uses: docker://golang:1.26-bookworm
         with:
           args: go test -v ./...
 
