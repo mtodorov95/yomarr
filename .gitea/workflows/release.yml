@@ -31,9 +31,9 @@ jobs:
           entrypoint: /bin/sh
           args: >-
             -c "
-            REGISTRY_HOST=\$(echo \"${{ gitea.server_url }}\" | sed -e 's|^[^/]*//||' -e 's|:3000||') &&
-            echo \"Logging into clean registry host: \${REGISTRY_HOST}\" &&
-            echo '${{ secrets.GITEA_TOKEN }}' | docker login \${REGISTRY_HOST} --username ${{ gitea.actor }} --password-stdin
+            mkdir -p ~/.docker &&
+            echo '{\"insecure-registries\":[\"192.168.0.235:3000\"]}' > ~/.docker/config.json &&
+            echo '${{ secrets.GITEA_TOKEN }}' | docker login 192.168.0.235:3000 --username ${{ gitea.actor }} --password-stdin
             "
 
       - name: Build and Push Docker Image
@@ -44,15 +44,17 @@ jobs:
           entrypoint: /bin/sh
           args: >-
             -c "
+            mkdir -p ~/.docker &&
+            echo '{\"insecure-registries\":[\"192.168.0.235:3000\"]}' > ~/.docker/config.json &&
             VERSION_TAG=\"${GITHUB_REF#refs/tags/}\" &&
-            REGISTRY_HOST=\$(echo \"${{ gitea.server_url }}\" | sed -e 's|^[^/]*//||' -e 's|:3000||') &&
-            IMAGE_PATH=\"\${REGISTRY_HOST}/${{ gitea.repository }}\" &&
+            IMAGE_PATH=\"192.168.0.235:3000/${{ gitea.repository }}\" &&
             IMAGE_PATH=\$(echo \"\$IMAGE_PATH\" | tr '[:upper:]' '[:lower:]') &&
-            echo \"Building image for version: \${VERSION_TAG} at path \${IMAGE_PATH}\" &&
-            docker build -t \"\${IMAGE_PATH}:\${VERSION_TAG}\" -t \"\${IMAGE_PATH}:latest\" . &&
+            echo \"Building image at path \${IMAGE_PATH}\" &&
+            docker build -t \"\${IMAGE_PATH}:\\${VERSION_TAG}\" -t \"\${IMAGE_PATH}:latest\" . &&
             docker push \"\${IMAGE_PATH}:\${VERSION_TAG}\" &&
             docker push \"\${IMAGE_PATH}:latest\"
             "
+
 
       - name: Create Gitea Release
         run: |
