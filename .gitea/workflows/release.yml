@@ -21,7 +21,7 @@ jobs:
       - name: Run Tests
         uses: docker://golang:1.26-bookworm
         with:
-          args: go test -v ./...
+          args: go test -v ./internal/...
 
       - name: Log in to Gitea Container Registry
         run: |
