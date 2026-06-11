@@ -29,6 +29,18 @@ func (m *MockStore) Insert(s *models.Series) error {
 	return nil
 }
 
+func (m *MockStore) Delete(id int64) error {
+	for i, s := range m.series {
+		if s.ID == id {
+			m.series = append(m.series[:i], m.series[i+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *MockStore) Update(s *models.Series) error { return nil }
+
 func TestHandleSeries(t *testing.T) {
 	mock := &MockStore{}
 	handler := &SeriesHandler{Store: mock}
