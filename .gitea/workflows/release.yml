@@ -33,7 +33,7 @@ jobs:
             -c "
             mkdir -p ~/.docker &&
             echo '{\"insecure-registries\":[\"192.168.0.235:3000\"]}' > ~/.docker/config.json &&
-            echo '${{ secrets.GITEA_TOKEN }}' | docker login 192.168.0.235:3000 --username ${{ gitea.actor }} --password-stdin
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login 192.168.0.235:3000 --username GITEA_ACTOR --password-stdin
             "
 
       - name: Build and Push Docker Image
@@ -50,11 +50,10 @@ jobs:
             IMAGE_PATH=\"192.168.0.235:3000/${{ gitea.repository }}\" &&
             IMAGE_PATH=\$(echo \"\$IMAGE_PATH\" | tr '[:upper:]' '[:lower:]') &&
             echo \"Building image at path \${IMAGE_PATH}\" &&
-            docker build -t \"\${IMAGE_PATH}:\\${VERSION_TAG}\" -t \"\${IMAGE_PATH}:latest\" . &&
+            docker build -t \"\${IMAGE_PATH}:\${VERSION_TAG}\" -t \"\${IMAGE_PATH}:latest\" . &&
             docker push \"\${IMAGE_PATH}:\${VERSION_TAG}\" &&
             docker push \"\${IMAGE_PATH}:latest\"
             "
-
 
       - name: Create Gitea Release
         run: |
