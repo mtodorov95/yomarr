@@ -41,6 +41,8 @@ func (ls *LibraryScanner) StartBackgroundScan(interval time.Duration) {
 	}()
 }
 
+var folderYearRegex = regexp.MustCompile(`^(.+?)\s*\((\d{4})\)$`)
+
 func (ls *LibraryScanner) ScanLibrary() error {
 	libraryRoot := os.Getenv("MANGA_LIBRARY_ROOT")
 	if libraryRoot == "" {
@@ -73,7 +75,42 @@ func (ls *LibraryScanner) ScanLibrary() error {
 		}
 
 		if matchedSeries == nil {
-			continue
+			log.Printf("[Scanner] Found unrecognized folder: %s. Attempting auto-creation...", dir.Name())
+
+			cleanTitle := strings.TrimSpace(dir.Name())
+			var seriesYear *int
+
+			if matches := folderYearRegex.FindStringSubmatch(cleanTitle); len(matches) > 2 {
+				cleanTitle = strings.TrimSpace(matches[1])
+				if y, err := strconv.Atoi(matches[2]); err == nil {
+					seriesYear = &y
+				}
+			}
+
+			for i := range allSeries {
+				if strings.ToLower(allSeries[i].Title) == strings.ToLower(cleanTitle) {
+					matchedSeries = &allSeries[i]
+					break
+				}
+			}
+
+			if matchedSeries == nil {
+				newSeries := models.Series{
+					Title:  cleanTitle,
+					Year:   seriesYear,
+					Status: models.SeriesUnmonitored,
+				}
+
+				if err := ls.SeriesStore.Insert(&newSeries); err != nil {
+					log.Printf("[Scanner Error] Failed to auto-create missing series row for %s: %v", cleanTitle, err)
+					continue
+				}
+
+				log.Printf("[Scanner] Successfully registered new series: %s (ID: %d)", newSeries.Title, newSeries.ID)
+
+				allSeries = append(allSeries, newSeries)
+				matchedSeries = &allSeries[len(allSeries)-1]
+			}
 		}
 
 		if err := ls.scanSeriesFolder(matchedSeries, filepath.Join(libraryRoot, dir.Name())); err != nil {
@@ -295,22 +332,35 @@ func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbac
 			continue
 		}
 
-		fileName := f.Name
-		if strings.HasPrefix(filepath.Base(fileName), ".") {
+		internalPath := filepath.ToSlash(f.Name)
+		parts := strings.Split(internalPath, "/")
+
+		var tokenToParse string
+
+		if len(parts) > 1 {
+			// Nested in a folder
+			tokenToParse = parts[len(parts)-2]
+		} else {
+			// File in root
+			tokenToParse = parts[0]
+		}
+
+		if strings.HasPrefix(filepath.Base(tokenToParse), ".") {
 			continue
 		}
 
 		var fileSpecificVol *int
-		if volMatches := indexer.VolRegex.FindStringSubmatch(fileName); len(volMatches) > 1 {
+		if volMatches := indexer.VolRegex.FindStringSubmatch(tokenToParse); len(volMatches) > 1 {
 			if v, err := strconv.Atoi(volMatches[1]); err == nil {
 				fileSpecificVol = &v
 			}
-		} else if jaVolMatches := indexer.VolJaRegex.FindStringSubmatch(fileName); len(jaVolMatches) > 1 {
+		} else if jaVolMatches := indexer.VolJaRegex.FindStringSubmatch(f.Name); len(jaVolMatches) > 1 {
 			if v, err := strconv.Atoi(jaVolMatches[1]); err == nil {
 				fileSpecificVol = &v
 			}
 		}
-		cleanedName := pageCleanerRegex.ReplaceAllString(fileName, " ")
+
+		cleanedName := pageCleanerRegex.ReplaceAllString(tokenToParse, " ")
 
 		if volMatch := indexer.VolRegex.FindString(cleanedName); volMatch != "" {
 			cleanedName = strings.ReplaceAll(cleanedName, volMatch, " ")
