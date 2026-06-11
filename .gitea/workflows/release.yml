@@ -12,10 +12,6 @@ jobs:
       contents: write
       packages: write
 
-    options: >-
-      -v /var/run/docker.sock:/var/run/docker.sock
-      -v /usr/bin/docker:/usr/bin/docker
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -28,26 +24,30 @@ jobs:
           args: go test -v ./internal/...
 
       - name: Log in to Gitea Container Registry
-        run: |
-          echo "${{ secrets.GITEA_TOKEN }}" | docker login ${{ gitea.server_url }} --username ${{ gitea.actor }} --password-stdin
+        uses: docker://docker:cli
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+        with:
+          entrypoint: /bin/sh
+          args: -c "echo '${{ secrets.GITEA_TOKEN }}' | docker login ${{ gitea.server_url }} --username ${{ gitea.actor }} --password-stdin"
 
       - name: Build and Push Docker Image
-        run: |
-          # Strip 'refs/tags/' from the ref string to get clean tags like 'v0.3.0'
-          VERSION_TAG="${GITHUB_REF#refs/tags/}"
-          IMAGE_PATH="${{ gitea.server_url }}/${{ gitea.repository }}"
-          
-          echo "Building image for version: ${VERSION_TAG}"
-          
-          # Build the container locally
-          docker build \
-            -t "${IMAGE_PATH}:${VERSION_TAG}" \
-            -t "${IMAGE_PATH}:latest" \
-            .
-            
-          # Push both your specific version tag and 'latest' to your registry
-          docker push "${IMAGE_PATH}:${VERSION_TAG}"
-          docker push "${IMAGE_PATH}:latest"
+        uses: docker://docker:cli
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+        with:
+          entrypoint: /bin/sh
+          args: >-
+            -c "
+            VERSION_TAG=\"${GITHUB_REF#refs/tags/}\" &&
+            REGISTRY_HOST=\$(echo \"${{ gitea.server_url }}\" | sed -e 's|^[^/]*//||') &&
+            IMAGE_PATH=\"\${REGISTRY_HOST}/${{ gitea.repository }}\" &&
+            IMAGE_PATH=\$(echo \"\$IMAGE_PATH\" | tr '[:upper:]' '[:lower:]') &&
+            echo \"Building image for version: \${VERSION_TAG} at path \${IMAGE_PATH}\" &&
+            docker build -t \"\${IMAGE_PATH}:\${VERSION_TAG}\" -t \"\${IMAGE_PATH}:latest\" . &&
+            docker push \"\${IMAGE_PATH}:\${VERSION_TAG}\" &&
+            docker push \"\${IMAGE_PATH}:latest\"
+            "
 
       - name: Create Gitea Release
         run: |
