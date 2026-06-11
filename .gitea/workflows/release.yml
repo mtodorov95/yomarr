@@ -12,6 +12,10 @@ jobs:
       contents: write
       packages: write
 
+    options: >-
+      -v /var/run/docker.sock:/var/run/docker.sock
+      -v /usr/bin/docker:/usr/bin/docker
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
