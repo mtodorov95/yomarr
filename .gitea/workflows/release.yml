@@ -9,7 +9,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     container:
-      image: golang:1.26-bullseye
+      image: golang:1.23-bullseye
     permissions:
       contents: write
       packages: write
