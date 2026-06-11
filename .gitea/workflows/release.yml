@@ -20,7 +20,8 @@ jobs:
 
       - name: Run Tests
         uses: docker://golang:1.23-bullseye
-        run: go test -v ./...
+        with:
+          args: go test -v ./...
 
       - name: Log in to Gitea Container Registry
         run: |
