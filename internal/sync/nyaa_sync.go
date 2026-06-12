@@ -49,20 +49,56 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 		return err
 	}
 
-	searchQueries := append([]string{series.Title}, series.AltTitles...)
+	missingLanguages := make(map[string]bool)
+	for _, ch := range missing {
+		missingLanguages[ch.Language] = true
+	}
+
+	searchQueries := []string{series.Title}
+
+	for lang := range missingLanguages {
+		if langTitles, ok := series.AltTitles[lang]; ok {
+			searchQueries = append(searchQueries, langTitles...)
+		}
+
+		if lang == "raw" {
+			if roTitles, ok := series.AltTitles["ja-ro"]; ok {
+				searchQueries = append(searchQueries, roTitles...)
+			}
+			if jaTitles, ok := series.AltTitles["ja"]; ok {
+				searchQueries = append(searchQueries, jaTitles...)
+			}
+		}
+	}
+
+	if len(searchQueries) == 1 && series.AltTitles == nil {
+		log.Printf("[Sync Warning] Series %s might contain legacy unmapped alternative titles.", series.Title)
+	}
+
 	var results []indexer.NyaaResult
+	seenTorrents := make(map[string]bool)
 
 	for _, queryTitle := range searchQueries {
-		log.Printf("Executing broad search on Nyaa for: %s", queryTitle)
-		results, err = e.Indexer.Search(queryTitle)
-		if err == nil && len(results) > 0 {
-			log.Printf("Found %d results using title variant: %s", len(results), queryTitle)
-			break
+		log.Printf("Executing targeted search on Nyaa for: %s", queryTitle)
+		variantResults, err := e.Indexer.Search(queryTitle)
+		if err != nil {
+			log.Printf("Search error for variant '%s': %v", queryTitle, err)
+			continue
+		}
+
+		if len(variantResults) > 0 {
+			log.Printf("Found %d results using title variant: %s", len(variantResults), queryTitle)
+			for _, res := range variantResults {
+				if !seenTorrents[res.InfoHash] {
+					seenTorrents[res.InfoHash] = true
+					results = append(results, res)
+				}
+			}
 		}
 	}
 
 	if len(results) == 0 {
-		log.Printf("Total search blackout on Nyaa across all known titles for: %s", series.Title)
+		log.Printf("Total search blackout on Nyaa across relevant titles for: %s", series.Title)
 		return nil
 	}
 
@@ -73,13 +109,20 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 		maxSeeders := -1
 
 		for _, res := range results {
+			if res.Language != ch.Language {
+				continue
+			}
+
 			parsed, ok := indexer.ParseTorrentTitle(res.Title)
-
 			isMatch := false
-
 			titleLower := strings.ToLower(res.Title)
+
 			if !ok {
-				if !strings.Contains(titleLower, "ln") && !strings.Contains(titleLower, "novel") {
+				if !strings.Contains(titleLower, "ln") &&
+					!strings.Contains(titleLower, "novel") &&
+					!strings.Contains(titleLower, "wn") &&
+					!strings.Contains(titleLower, "epub") &&
+					!strings.Contains(titleLower, "pdf") {
 					if strings.Contains(titleLower, "complete") || strings.Contains(titleLower, "digital") {
 						isMatch = true
 					}

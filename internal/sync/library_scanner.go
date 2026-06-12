@@ -475,6 +475,7 @@ func (ls *LibraryScanner) RefreshSeriesMetadata(id int64) (*models.Series, error
 	s.LastChapter = extSeries.LastChapter
 	s.LastVolume = extSeries.LastVolume
 	s.TotalChapters = extSeries.TotalChapters
+	s.AltTitles = extSeries.AltTitles
 
 	if (s.MangadexID == nil || *s.MangadexID == "") && extSeries.MangadexID != nil {
 		s.MangadexID = extSeries.MangadexID

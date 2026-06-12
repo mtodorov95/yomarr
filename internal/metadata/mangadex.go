@@ -271,11 +271,11 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			alIDPtr = &alID
 		}
 
-		var fallbacks []string
+		fallbacks := make(map[string][]string)
 		for _, alt := range item.Attributes.AltTitles {
-			for _, altTitle := range alt {
+			for langCode, altTitle := range alt {
 				if altTitle != "" {
-					fallbacks = append(fallbacks, altTitle)
+					fallbacks[langCode] = append(fallbacks[langCode], altTitle)
 				}
 			}
 		}
@@ -332,11 +332,11 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		alIDPtr = &alID
 	}
 
-	var fallbacks []string
+	fallbacks := make(map[string][]string)
 	for _, alt := range res.Data.Attributes.AltTitles {
-		for _, altTitle := range alt {
+		for langCode, altTitle := range alt {
 			if altTitle != "" {
-				fallbacks = append(fallbacks, altTitle)
+				fallbacks[langCode] = append(fallbacks[langCode], altTitle)
 			}
 		}
 	}

@@ -60,10 +60,12 @@ func torrentMatchesSeries(torrentNameLower string, series models.Series) bool {
 		}
 	}
 
-	for _, alt := range series.AltTitles {
-		if cleanAlt := normalize(alt); cleanAlt != "" {
-			if strings.Contains(cleanTorrent, cleanAlt) {
-				return true
+	for _, titlesSlice := range series.AltTitles {
+		for _, alt := range titlesSlice {
+			if cleanAlt := normalize(alt); cleanAlt != "" {
+				if strings.Contains(cleanTorrent, cleanAlt) {
+					return true
+				}
 			}
 		}
 	}

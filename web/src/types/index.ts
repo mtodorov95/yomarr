@@ -7,7 +7,7 @@ export interface Series {
   anilist_id?: string | null;
   mangadex_id?: string | null;
   title: string;
-  alt_titles: string[];
+  alt_titles: Record<string, string[]>;
   status: SeriesStatus;
   path: string;
   localPath?: string;

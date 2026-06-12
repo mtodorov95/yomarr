@@ -94,7 +94,6 @@ func main() {
 
 	searchHandler := api.NewSearchHandler(nyaaEngine)
 	mux.HandleFunc("/api/series/search-missing", searchHandler.SearchMissing)
-	mux.HandleFunc("/api/series/search-interactive", searchHandler.SearchChaptersInteractive)
 
 	libraryHandler := api.NewLibraryHandler(scanner)
 	mux.HandleFunc("/api/library/scan", libraryHandler.ScanLibrary)

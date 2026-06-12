@@ -58,7 +58,7 @@ func (h *SeriesHandler) HandleSeries(w http.ResponseWriter, r *http.Request) {
 			h.deleteCover(w, r, idStr, coverFile)
 			return
 		}
-		
+
 		if idStr != "" {
 			h.delete(w, idStr)
 			return
@@ -93,13 +93,13 @@ func (h *SeriesHandler) getById(w http.ResponseWriter, idStr string) {
 
 func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		AnilistID     string   `json:"anilist_id"`
-		MangadexId    string   `json:"mangadex_id"`
-		Title         string   `json:"title"`
-		AltTitles     []string `json:"alt_titles"`
-		Status        string   `json:"status"`
-		Path          string   `json:"path"`
-		TotalChapters int      `json:"total_chapters"`
+		AnilistID     string              `json:"anilist_id"`
+		MangadexId    string              `json:"mangadex_id"`
+		Title         string              `json:"title"`
+		AltTitles     map[string][]string `json:"alt_titles"`
+		Status        string              `json:"status"`
+		Path          string              `json:"path"`
+		TotalChapters int                 `json:"total_chapters"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -240,34 +240,34 @@ func (h *SeriesHandler) delete(w http.ResponseWriter, idStr string) {
 }
 
 func (h *SeriesHandler) deleteCover(w http.ResponseWriter, r *http.Request, idStr string, coverFile string) {
-    id, err := strconv.ParseInt(idStr, 10, 64)
-    if err != nil {
-        http.Error(w, "Invalid series ID format", http.StatusBadRequest)
-        return
-    }
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid series ID format", http.StatusBadRequest)
+		return
+	}
 
-    s, err := h.Store.GetById(id)
-    if err != nil || s == nil {
-        http.Error(w, "Series target record not found", http.StatusNotFound)
-        return
-    }
+	s, err := h.Store.GetById(id)
+	if err != nil || s == nil {
+		http.Error(w, "Series target record not found", http.StatusNotFound)
+		return
+	}
 
 	_ = utils.DeleteSeriesFile(s.Path, coverFile)
 
-    var updatedCovers []string
-    for _, c := range s.HistoricalCovers {
-        if c != coverFile {
-            updatedCovers = append(updatedCovers, c)
-        }
-    }
-    s.HistoricalCovers = updatedCovers
+	var updatedCovers []string
+	for _, c := range s.HistoricalCovers {
+		if c != coverFile {
+			updatedCovers = append(updatedCovers, c)
+		}
+	}
+	s.HistoricalCovers = updatedCovers
 
-    if err := h.Store.Update(s); err != nil {
-        log.Printf("[API Error] Failed saving post-delete cover manifest: %v", err)
-        http.Error(w, "Internal server data sync failure", http.StatusInternalServerError)
-        return
-    }
+	if err := h.Store.Update(s); err != nil {
+		log.Printf("[API Error] Failed saving post-delete cover manifest: %v", err)
+		http.Error(w, "Internal server data sync failure", http.StatusInternalServerError)
+		return
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(s)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(s)
 }
