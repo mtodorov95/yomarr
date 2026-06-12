@@ -44,12 +44,15 @@ func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, qb *download.QBit
 
 func torrentMatchesSeries(torrentNameLower string, series models.Series) bool {
 	normalize := func(s string) string {
-		s = strings.ToLower(s)
-		s = strings.ReplaceAll(s, " ", "")
-		s = strings.ReplaceAll(s, "-", "")
-		s = strings.ReplaceAll(s, "_", "")
-		s = strings.ReplaceAll(s, ".", "")
-		return s
+		replacer := strings.NewReplacer(
+			" ", "", "-", "", "_", "", ".", "",
+			":", "", "?", "", "!", "", `"`, "",
+			`'`, "", "`", "", "/", "", "\\", "",
+			"(", "", ")", "", "[", "", "]", "",
+			"★", "", "☆", "",
+		)
+
+		return strings.ToLower(replacer.Replace(s))
 	}
 
 	cleanTorrent := normalize(torrentNameLower)
@@ -93,7 +96,7 @@ func (m *DownloadMonitor) importToLibrary(series models.Series, torrentName stri
 	if !srcInfo.IsDir() {
 		finalDestPath := filepath.Join(destDir, torrentName)
 		log.Printf("[Importer] Moving single file: %s -> %s", torrentName, finalDestPath)
-		
+
 		if err := moveOrCopyFile(srcPath, finalDestPath); err != nil {
 			return "", err
 		}
@@ -101,7 +104,7 @@ func (m *DownloadMonitor) importToLibrary(series models.Series, torrentName stri
 	}
 
 	log.Printf("[Importer] Parsing folder structure for %s...", torrentName)
-	
+
 	var primaryTrackedPath string
 
 	err = filepath.WalkDir(srcPath, func(path string, d os.DirEntry, walkErr error) error {
