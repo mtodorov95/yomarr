@@ -22,6 +22,7 @@ type Series struct {
 	Year             *int                `json:"year"`
 	LastChapter      *string             `json:"last_chapter"`
 	LastVolume       *string             `json:"last_volume"`
+	DownloadedCount  int                 `json:"downloaded_count"`
 }
 
 type Chapters struct {

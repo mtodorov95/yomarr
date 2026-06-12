@@ -27,12 +27,19 @@ type SQLiteSeriesStore struct{}
 
 func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 	query := `
-		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
-		       total_chapters, thumbnail, historical_covers, author, artist, year, 
-		       genres, description, last_chapter, last_volume 
-		FROM series
-		ORDER BY title ASC
-	`
+        SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
+               total_chapters, thumbnail, historical_covers, author, artist, year, 
+               genres, description, last_chapter, last_volume,
+               (
+                   SELECT COUNT(DISTINCT c.number) 
+                   FROM chapters c 
+                   WHERE c.series_id = series.id 
+                     AND c.file_path IS NOT NULL 
+                     AND c.file_path != ''
+               ) AS downloaded_count
+        FROM series
+        ORDER BY title ASC
+    `
 
 	rows, err := DB.Query(query)
 	if err != nil {
@@ -51,7 +58,7 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 		err := rows.Scan(
 			&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
 			&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &s.Artist, &s.Year,
-			&genresStr, &s.Description, &s.LastChapter, &s.LastVolume,
+			&genresStr, &s.Description, &s.LastChapter, &s.LastVolume, &s.DownloadedCount,
 		)
 		if err != nil {
 			return nil, err
@@ -72,17 +79,24 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 	var genresStr string
 
 	query := `
-		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
-		       total_chapters, thumbnail, historical_covers, author, artist, year, 
-		       genres, description, last_chapter, last_volume 
-		FROM series 
-		WHERE id = ?
-	`
+        SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
+               total_chapters, thumbnail, historical_covers, author, artist, year, 
+               genres, description, last_chapter, last_volume,
+               (
+                   SELECT COUNT(DISTINCT c.number) 
+                   FROM chapters c 
+                   WHERE c.series_id = series.id 
+                     AND c.file_path IS NOT NULL 
+                     AND c.file_path != ''
+               ) AS downloaded_count
+        FROM series 
+        WHERE id = ?
+    `
 
 	err := DB.QueryRow(query, id).Scan(
 		&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
 		&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &s.Artist, &s.Year,
-		&genresStr, &s.Description, &s.LastChapter, &s.LastVolume,
+		&genresStr, &s.Description, &s.LastChapter, &s.LastVolume, &s.DownloadedCount,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

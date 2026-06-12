@@ -41,19 +41,23 @@ onMounted(fetchStats)
     <div class="legend-panel">
       <div class="legend-item">
         <span class="indicator-box blue"></span>
-        <span class="legend-text">Continuing (All chapters downloaded)</span>
+        <span class="legend-text">Ongoing</span>
       </div>
       <div class="legend-item">
         <span class="indicator-box green"></span>
-        <span class="legend-text">Ended (All chapters downloaded)</span>
-      </div>
-      <div class="legend-item">
-        <span class="indicator-box red"></span>
-        <span class="legend-text">Missing Chapters (Series monitored)</span>
+        <span class="legend-text">Completed</span>
       </div>
       <div class="legend-item">
         <span class="indicator-box purple"></span>
-        <span class="legend-text">Downloading (One or more chapters)</span>
+        <span class="legend-text">Downloading</span>
+      </div>
+      <div class="legend-item">
+        <span class="indicator-box orange"></span>
+        <span class="legend-text">Hiatus</span>
+      </div>
+      <div class="legend-item">
+        <span class="indicator-box deep-red"></span>
+        <span class="legend-text">Unmonitored</span>
       </div>
     </div>
 
@@ -124,8 +128,9 @@ onMounted(fetchStats)
 
 .indicator-box.blue   { background-color: #2563eb; }
 .indicator-box.green  { background-color: #16a34a; }
-.indicator-box.red    { background-color: #dc2626; }
 .indicator-box.purple { background-color: #9333ea; }
+.indicator-box.orange   { background-color: #f97316; }
+.indicator-box.deep-red { background-color: #7f1d1d; }
 
 .legend-text {
   color: #94a3b8;

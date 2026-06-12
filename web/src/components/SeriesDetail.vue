@@ -468,6 +468,18 @@ onMounted(loadPageData)
     background-color: rgba(29, 78, 216, 0.2);
 }
 
+.status-pill.hiatus {
+    color: #fdba74;
+    background-color: rgba(194, 65, 12, 0.2);
+    border: 1px solid rgba(194, 65, 12, 0.4);
+}
+
+.status-pill.unmonitored {
+    color: #f87171;
+    background-color: rgba(127, 29, 29, 0.3);
+    border: 1px solid rgba(185, 28, 28, 0.4);
+}
+
 .genre-pill {
     background-color: #374151;
     color: #e5e7eb;

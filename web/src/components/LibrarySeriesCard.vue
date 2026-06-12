@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { useToast } from '@/composables/useToast';
 import type { Series } from '../types'
+import { ref } from 'vue';
 
 const props = defineProps<{
     series: Series
 }>()
+
+const toast = useToast()
+const searching = ref(false)
 
 const emit = defineEmits<{
     (e: 'delete', id: number): void
@@ -13,6 +18,32 @@ const emit = defineEmits<{
 function handleDelete() {
     if (props.series.id === undefined) return
     emit('delete', props.series.id)
+}
+
+async function handleSearchMissing() {
+    if (!props.series.id) return
+    searching.value = true
+    try {
+        const res = await fetch(`/api/series/search-missing?series_id=${props.series.id}`, {
+            method: 'POST'
+        })
+        if (!res.ok) throw new Error('Search failed')
+        toast.info(`Search indexer triggered for: ${props.series.title}`)
+    } catch (e) {
+        console.error(e)
+        toast.error(`Failed to search missing chapters for ${props.series.title}`)
+    } finally {
+        searching.value = false
+    }
+}
+
+function getCompletionPercentage(): number {
+    if (!props.series.total_chapters || props.series.total_chapters <= 0) return 0
+    
+    const downloaded = props.series.downloaded_count || 0
+    const percentage = Math.round((downloaded / props.series.total_chapters) * 100)
+    
+    return Math.min(Math.max(percentage, 0), 100)
 }
 
 function getImageUrl(): string {
@@ -37,24 +68,43 @@ function getImageUrl(): string {
             </div>
 
             <div class="poster-hover-overlay">
-                <button 
-                    @click.stop="handleDelete" 
-                    class="overlay-action-btn delete"
-                    title="Remove Target Series"
-                >
-                    🗑️
-                </button>
+                <div class="overlay-actions-row">
+                    <button 
+                        @click.stop="handleSearchMissing" 
+                        :disabled="searching"
+                        class="overlay-action-btn search"
+                        :class="{ 'is-spinning': searching }"
+                        title="Search Missing Chapters"
+                    >
+                            🔍
+                    </button>
+                    <button 
+                        @click.stop="handleDelete" 
+                        class="overlay-action-btn delete"
+                        title="Remove Series"
+                    >
+                        🗑️
+                    </button>
+                </div>
             </div>
 
             <div 
-                class="monitoring-ribbon" 
-                :class="{ 
-                    'status-ongoing': series.status?.toLowerCase() === 'ongoing',
-                    'status-completed': series.status?.toLowerCase() === 'completed'
-                }"
-                :title="'Tracking Status: ' + series.status"
-            ></div>
-        </div>
+                class="monitoring-progress-wrapper"
+                :title="`Tracking Status: ${series.status} | Progress: ${getCompletionPercentage()}%`"
+            >
+                <div class="progress-track-bg"></div>
+                <div 
+                    class="progress-fill-bar"
+                    :class="{ 
+                        'status-ongoing': series.status?.toLowerCase() === 'ongoing',
+                        'status-completed': series.status?.toLowerCase() === 'completed',
+                        'status-hiatus': series.status?.toLowerCase() === 'hiatus',
+                        'status-unmonitored': series.status?.toLowerCase() === 'unmonitored'
+                    }"
+                    :style="{ width: getCompletionPercentage() + '%' }"
+                ></div>
+                    </div>
+                </div>
 
         <div class="poster-meta">
             <h3 class="series-title-text" :title="series.title">{{ series.title }}</h3>
@@ -136,6 +186,14 @@ function getImageUrl(): string {
     pointer-events: auto;
 }
 
+.overlay-actions-row {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0 0.75rem;
+    justify-content: center;
+}
+
 .overlay-action-btn {
     font-size: 0.75rem;
     font-weight: 700;
@@ -143,7 +201,29 @@ function getImageUrl(): string {
     padding: 0.4rem 0.75rem;
     border-radius: 0.25rem;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.15s;
+    flex: 1;
+    max-width: 50px;
+}
+
+.overlay-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.overlay-action-btn.search {
+    background-color: #1e293b;
+    color: #38bdf8;
+    border-color: #0c4a6e;
+}
+
+.overlay-action-btn.search:hover:not(:disabled) {
+    background-color: #2563eb;
+    color: #ffffff;
+    border-color: #3b82f6;
 }
 
 .overlay-action-btn.delete {
@@ -158,22 +238,63 @@ function getImageUrl(): string {
     border-color: #ef4444;
 }
 
-.monitoring-ribbon {
+.overlay-action-btn.delete:hover:not(:disabled) {
+    background-color: #991b1b;
+    color: #ffffff;
+    border-color: #ef4444;
+}
+
+.overlay-action-btn.search.is-spinning {
+    animation: action-spin-clockwise 1s linear infinite;
+}
+
+@keyframes action-spin-clockwise {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.monitoring-progress-wrapper {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 5px;
-    background-color: #475569;
+    height: 6px;
+    background-color: #020617;
+    overflow: hidden;
 }
 
-.monitoring-ribbon.status-ongoing {
-    background-color: #15803d;
-    box-shadow: 0 -2px 8px rgba(21, 128, 61, 0.4);
+.progress-track-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #334155;
+    opacity: 0.25;
 }
 
-.monitoring-ribbon.status-completed {
-    background-color: #1d4ed8;
+.progress-fill-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-fill-bar.status-ongoing { 
+    background-color: #2563eb; 
+}
+
+.progress-fill-bar.status-completed { 
+    background-color: #16a34a;
+}
+
+.progress-fill-bar.status-hiatus { 
+    background-color: #f97316;
+}
+
+.progress-fill-bar.status-unmonitored { 
+    background-color: #7f1d1d;
 }
 
 .poster-meta {

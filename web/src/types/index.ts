@@ -12,6 +12,7 @@ export interface Series {
   path: string;
   localPath?: string;
   total_chapters?: number;
+  downloaded_count?: number;
   thumbnail?: string;
   historical_covers: string[];
   author?: string | null;

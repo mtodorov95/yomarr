@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import type { Series } from './types'
 import ToastContainer from './components/ToastContainer.vue'
 import { useToast } from './composables/useToast'
 
 const status = ref('loading...')
 const toast = useToast()
+const checkingHealth = ref(false)
+let healthIntervalId: ReturnType<typeof setInterval> | null = null
 
-onMounted(async () => {
+async function checkHealth() {
+    if (checkingHealth.value) return
+    checkingHealth.value = true
     try {
         const res = await fetch('/api/health')
         if (!res.ok) throw new Error('fail')
@@ -16,8 +20,10 @@ onMounted(async () => {
     } catch (e) {
         status.value = 'offline'
         toast.error("Backend offline")
+    } finally {
+        checkingHealth.value = false
     }
-})
+}
 
 async function handleImport(item: Series) {
     try {
@@ -43,6 +49,16 @@ async function handleImport(item: Series) {
         toast.error(`Import failed for ${item.title}`)
     }
 }
+
+onMounted(() => {
+    checkHealth()
+    
+    healthIntervalId = setInterval(checkHealth, 10 * 60 * 1000)
+})
+
+onUnmounted(() => {
+    if (healthIntervalId) clearInterval(healthIntervalId)
+})
 </script>
 
 <template>
@@ -81,6 +97,19 @@ async function handleImport(item: Series) {
                 <div class="system-status">
                     <span class="status-indicator-dot" :class="{ 'is-ok': status === 'ok', 'is-error': status !== 'ok' }"></span>
                     <span class="status-label">System Status: <strong>{{ status }}</strong></span>
+                    
+                    <button 
+                        @click="checkHealth" 
+                        class="health-refresh-btn" 
+                        :class="{ 'is-spinning': checkingHealth }"
+                        :disabled="checkingHealth"
+                        title="Force Health Validation Check"
+                        aria-label="Refresh status"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="refresh-svg-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         </aside>
@@ -284,6 +313,44 @@ async function handleImport(item: Series) {
     backdrop-filter: blur(4px);
     z-index: 50;
     cursor: pointer;
+}
+
+.health-refresh-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    margin-left: auto;
+}
+
+.health-refresh-btn:hover:not(:disabled) {
+    color: #ffffff;
+    background-color: #1e293b;
+}
+
+.health-refresh-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.refresh-svg-icon {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.health-refresh-btn.is-spinning .refresh-svg-icon {
+    animation: spin-clockwise 1s linear infinite;
+}
+
+@keyframes spin-clockwise {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
