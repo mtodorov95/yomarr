@@ -5,6 +5,7 @@ import SeriesList from './SeriesList.vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import ConfirmationModal from './ConfirmationModal.vue'
+import SystemStats from './SystemStats.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -138,6 +139,8 @@ onMounted(fetchSeries)
                 </div>
             </template>
         </div>
+
+        <SystemStats />
 
         <ConfirmationModal 
             :isOpen="isModalOpen"

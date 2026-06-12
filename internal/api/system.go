@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/models"
@@ -14,6 +16,10 @@ import (
 type SystemHandler struct {
 	SeriesStore  db.SeriesStore
 	ChapterStore db.ChapterStore
+	cacheMutex   sync.RWMutex
+	cachedStats  *SystemStatsResponse
+	lastCached   time.Time
+	cacheTTL     time.Duration
 }
 
 type SystemStatsResponse struct {
@@ -27,12 +33,32 @@ func NewSystemHandler(ss db.SeriesStore, cs db.ChapterStore) *SystemHandler {
 	return &SystemHandler{
 		SeriesStore:  ss,
 		ChapterStore: cs,
+		cacheTTL:     2 * time.Hour,
 	}
 }
 
 func (h *SystemHandler) HandleSystemStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	h.cacheMutex.RLock()
+	useCache := h.cachedStats != nil && time.Since(h.lastCached) < h.cacheTTL
+	if useCache {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(h.cachedStats)
+		h.cacheMutex.RUnlock()
+		return
+	}
+	h.cacheMutex.RUnlock()
+
+	h.cacheMutex.Lock()
+	defer h.cacheMutex.Unlock()
+
+	if h.cachedStats != nil && time.Since(h.lastCached) < h.cacheTTL {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(h.cachedStats)
 		return
 	}
 
@@ -64,13 +90,14 @@ func (h *SystemHandler) HandleSystemStats(w http.ResponseWriter, r *http.Request
 		log.Printf("[System API Warning] Error calculating disk storage profile footprint: %v", err)
 	}
 
-	resp := SystemStatsResponse{
+	h.cachedStats = &SystemStatsResponse{
 		TotalSeries:        seriesCount,
 		DownloadedChapters: completedCount,
 		MissingChapters:    missingCount,
 		SizeOnDiskBytes:    sizeOnDisk,
 	}
+	h.lastCached = time.Now()
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(h.cachedStats)
 }
