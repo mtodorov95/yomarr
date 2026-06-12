@@ -14,6 +14,16 @@ func (m *MockChapterStore) GetBySeriesId(id int64) ([]models.Chapters, error) {
 }
 func (m *MockChapterStore) Insert(c *models.Chapters) error { return nil }
 
+func (m *MockChapterStore) GetByStatus(status string) ([]models.Chapters, error) {
+	return []models.Chapters{}, nil
+}
+
+func (m *MockChapterStore) Update(c *models.Chapters) error { return nil }
+
+func (m *MockChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error) {
+	return []*models.Chapters{}, nil
+}
+
 func TestHandleChapters(t *testing.T) {
 	handler := &ChapterHandler{Store: &MockChapterStore{}}
 

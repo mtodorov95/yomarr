@@ -40,3 +40,4 @@ downloads/
 temp/
 
 docker-compose.*
+release.sh

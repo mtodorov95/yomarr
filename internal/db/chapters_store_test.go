@@ -13,13 +13,17 @@ func TestChapterStore(t *testing.T) {
 	store := &SQLiteChapterStore{}
 	
 	t.Run("InsertAndGetBySeries", func(t *testing.T) {
+		vol := 1
+		path := "/test/ch1.5.cbz"
+		now := time.Now()
+
 		c := &models.Chapters{
 			SeriesID:    1,
 			Number:      1.5,
-			Volume:      1,
-			FilePath:    "/test/ch1.5.cbz",
+			Volume:      &vol,  
+			FilePath:    &path,
 			Status:      "Available",
-			ReleaseDate: time.Now(),
+			ReleaseDate: &now,
 		}
 
 		if err := store.Insert(c); err != nil {
