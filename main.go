@@ -98,6 +98,9 @@ func main() {
 	libraryHandler := api.NewLibraryHandler(scanner)
 	mux.HandleFunc("/api/library/scan", libraryHandler.ScanLibrary)
 
+	systemHandler := api.NewSystemHandler(seriesStore, chapterStore)
+    mux.HandleFunc("/api/system/stats", systemHandler.HandleSystemStats)
+
 	// Assets
 	mux.HandleFunc("/api/proxy-cover", api.ProxyCoverHandler)
 	mux.HandleFunc("/api/assets", api.FileAssetHandler)

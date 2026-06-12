@@ -8,6 +8,7 @@ type ChapterStore interface {
 	Update(c *models.Chapters) error
 	GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error)
 	GetByStatus(status string) ([]models.Chapters, error)
+	CountByStatus(status string) (int64, error)
 }
 
 type SQLiteChapterStore struct{}
@@ -128,4 +129,10 @@ func (store *SQLiteChapterStore) Update(c *models.Chapters) error {
 		c.ID,
 	)
 	return err
+}
+
+func (s *SQLiteChapterStore) CountByStatus(status string) (int64, error) {
+	var count int64
+	err := DB.QueryRow("SELECT COUNT(*) FROM chapters WHERE status = ?", status).Scan(&count)
+	return count, err
 }

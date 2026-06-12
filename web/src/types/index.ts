@@ -45,3 +45,10 @@ export interface ChapterGroup {
   english: TorrentVariant[]
   raws: TorrentVariant[]
 }
+
+export interface SystemStats {
+  total_series: number;
+  downloaded_chapters: number;
+  missing_chapters: number;
+  size_on_disk_bytes: number;
+}

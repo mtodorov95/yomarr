@@ -20,6 +20,7 @@ type SeriesStore interface {
 	Insert(s *models.Series) error
 	Update(s *models.Series) error
 	Delete(id int64) error
+	Count() (int64, error)
 }
 
 type SQLiteSeriesStore struct{}
@@ -150,4 +151,10 @@ func (store *SQLiteSeriesStore) Update(s *models.Series) error {
 func (store *SQLiteSeriesStore) Delete(id int64) error {
 	_, err := DB.Exec("DELETE FROM series WHERE id = ?", id)
 	return err
+}
+
+func (s *SQLiteSeriesStore) Count() (int64, error) {
+	var count int64
+	err := DB.QueryRow("SELECT COUNT(*) FROM series").Scan(&count)
+	return count, err
 }

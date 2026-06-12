@@ -23,6 +23,9 @@ func (m *MockChapterStore) Update(c *models.Chapters) error { return nil }
 func (m *MockChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models.Chapters, error) {
 	return []*models.Chapters{}, nil
 }
+func (m *MockChapterStore) CountByStatus(status string) (int64, error) {
+	return 10, nil
+}
 
 func TestHandleChapters(t *testing.T) {
 	handler := &ChapterHandler{Store: &MockChapterStore{}}

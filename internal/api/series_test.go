@@ -40,6 +40,7 @@ func (m *MockStore) Delete(id int64) error {
 }
 
 func (m *MockStore) Update(s *models.Series) error { return nil }
+func (m *MockStore) Count() (int64, error) { return 10, nil }
 
 func TestHandleSeries(t *testing.T) {
 	mock := &MockStore{}
