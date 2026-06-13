@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useToast } from '@/composables/useToast';
 import type { Series } from '../types'
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
     series: Series
@@ -38,7 +38,7 @@ async function handleSearchMissing() {
 }
 
 function getCompletionPercentage(): number {
-    if (!props.series.total_chapters || props.series.total_chapters <= 0) return 0
+    if (!props.series.total_chapters || props.series.total_chapters <= 0) return 100
     
     const downloaded = props.series.downloaded_count || 0
     const percentage = Math.round((downloaded / props.series.total_chapters) * 100)
@@ -50,6 +50,12 @@ function getImageUrl(): string {
     if (!props.series.thumbnail) return ''
     return `/api/assets?path=${encodeURIComponent(props.series.path + '/' + props.series.thumbnail)}`
 }
+
+const truncatedTitle = computed(() => {
+    const limit = 18
+    if (props.series.title.length <= limit) return props.series.title;
+    return props.series.title.slice(0, limit) + '...';
+})
 </script>
 
 <template>
@@ -107,8 +113,7 @@ function getImageUrl(): string {
                 </div>
 
         <div class="poster-meta">
-            <h3 class="series-title-text" :title="series.title">{{ series.title }}</h3>
-            <span class="series-subtitle-path" :title="series.path">{{ series.path }}</span>
+            <h3 class="series-title-text" :title="series.title">{{ truncatedTitle }}</h3>
         </div>
     </div>
 </template>
@@ -302,6 +307,7 @@ function getImageUrl(): string {
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
+    align-items: center;
 }
 
 .series-title-text {
@@ -317,13 +323,5 @@ function getImageUrl(): string {
 
 .series-poster-card:hover .series-title-text {
     color: #38bdf8;
-}
-
-.series-subtitle-path {
-    font-size: 0.7rem;
-    color: #64748b;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 </style>

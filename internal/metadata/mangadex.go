@@ -388,6 +388,7 @@ func (p *MangaDexProvider) GetChapterFeed(mangadexID string) ([]ExtChapter, erro
 		q := req.URL.Query()
 		q.Add("limit", strconv.Itoa(limit))
 		q.Add("offset", strconv.Itoa(offset))
+		q.Add("includeUnavailable", "1")
 		q.Add("order[chapter]", "asc")
 		req.URL.RawQuery = q.Encode()
 

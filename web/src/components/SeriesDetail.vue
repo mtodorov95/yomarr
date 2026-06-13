@@ -216,7 +216,7 @@ onMounted(loadPageData)
                                 📁 {{ series.path }}
                             </span>
                             <span class="arr-pill status-pill" :class="series.status?.toLowerCase()">
-                                ⚡ {{ series.status || 'Unknown State' }}
+                                {{ series.status || 'Unknown State' }}
                             </span>
                             <template v-if="series.genres">
                                 <span 
@@ -459,13 +459,13 @@ onMounted(loadPageData)
 }
 
 .status-pill.ongoing {
-    color: #4ade80;
-    background-color: rgba(21, 128, 61, 0.2);
+    color: #60a5fa;
+    background-color: rgba(29, 78, 216, 0.2);
 }
 
 .status-pill.completed {
-    color: #60a5fa;
-    background-color: rgba(29, 78, 216, 0.2);
+    color: #4ade80;
+    background-color: rgba(21, 128, 61, 0.2);
 }
 
 .status-pill.hiatus {

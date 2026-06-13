@@ -104,8 +104,8 @@ function triggerImport() {
 }
 
 .thumbnail-wrapper {
-    width: 4.5rem;
-    height: 6.5rem;
+    height: 12rem;
+    aspect-ratio: 2/3;
     flex-shrink: 0;
     border-radius: 0.375rem;
     overflow: hidden;
