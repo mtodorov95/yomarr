@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import type { Series } from '../types'
+import type { Series, VolumeCover } from '../types'
 import { useToast } from '@/composables/useToast'
 import SeriesCovers from './SeriesCovers.vue'
 import ChapterTable from './ChapterTable.vue'
@@ -96,7 +96,7 @@ async function searchMissingChapters() {
     }
 }
 
-async function updateSeriesCovers(updatedCovers: string[], updatedThumbnail: string) {
+async function updateSeriesCovers(updatedCovers: VolumeCover[], updatedThumbnail: string) {
     if (!series.value) return
 
     const previousCovers = [...(series.value.historical_covers ?? [])]

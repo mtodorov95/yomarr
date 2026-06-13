@@ -14,7 +14,7 @@ export interface Series {
   total_chapters?: number;
   downloaded_count?: number;
   thumbnail?: string;
-  historical_covers: string[];
+  historical_covers: VolumeCover[];
   author?: string | null;
   genres: string[];
   description?: string | null;
@@ -29,6 +29,11 @@ export interface Chapter {
   status: ChapterStatus;
   release_date?: string | null;
   language: string;
+}
+
+export interface VolumeCover {
+    volume: number;
+    url: string;
 }
 
 export interface TorrentVariant {

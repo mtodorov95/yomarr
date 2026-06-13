@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { VolumeCover } from '@/types';
 import { getAssetUrl } from '@/utils/utils';
 import { computed } from 'vue'
 
 const props = defineProps<{
-    covers: string[] | undefined
+    covers: VolumeCover[] | undefined
     currentThumbnail: string | undefined;
     seriesPath: string | undefined
 }>()
@@ -14,25 +15,26 @@ const emit = defineEmits<{
 }>()
 
 const hasCovers = computed(() => props.covers && props.covers.length > 0)
+console.log(props.covers)
 </script>
 
 <template>
     <div class="tab-pane-view">
         <div v-if="hasCovers" class="arr-covers-fluid-grid">
             <div 
-                v-for="(coverFile, index) in covers" 
-                :key="index" 
+                v-for="(cover, _index) in covers" 
+                :key="cover.url" 
                 class="arr-cover-archive-card"
-                :class="{ 'is-primary-border': coverFile === currentThumbnail }"
+                :class="{ 'is-primary-border': cover.url === currentThumbnail }"
             >
                 <a 
-                    :href="getAssetUrl(coverFile, seriesPath)" 
+                    :href="getAssetUrl(cover.url, seriesPath)" 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     class="archive-image-wrapper"
                 >
                     <img 
-                        :src="getAssetUrl(coverFile, seriesPath)" 
+                        :src="getAssetUrl(cover.url, seriesPath)" 
                         alt="Volume Artwork Variant" 
                         class="archive-raw-img" 
                         loading="lazy"
@@ -41,8 +43,8 @@ const hasCovers = computed(() => props.covers && props.covers.length > 0)
                     <div class="cover-hover-overlay">
                         <div class="action-buttons-row">
                             <button 
-                                v-if="coverFile !== currentThumbnail"
-                                @click.stop.prevent="emit('promote', coverFile)"
+                                v-if="cover.url !== currentThumbnail"
+                                @click.stop.prevent="emit('promote', cover.url)"
                                 class="overlay-icon-btn promote"
                                 title="Set as Main Cover"
                             >
@@ -51,8 +53,8 @@ const hasCovers = computed(() => props.covers && props.covers.length > 0)
                             <span v-else class="active-badge-pill" title="Active Main Cover">⭐</span>
 
                             <button 
-                                @click.stop.prevent="emit('remove', coverFile)"
-                                :disabled="coverFile === currentThumbnail"
+                                @click.stop.prevent="emit('remove', cover.url)"
+                                :disabled="cover.url === currentThumbnail"
                                 class="overlay-icon-btn delete"
                                 title="Delete Cover"
                             >
@@ -63,8 +65,9 @@ const hasCovers = computed(() => props.covers && props.covers.length > 0)
                 </a>
                 
                 <div class="archive-label-tag">
-                    Variant {{ index + 1 }}
-                    <span v-if="coverFile === currentThumbnail" class="primary-label">(Active)</span>
+                    <span v-if="cover.volume === -1">Unassigned Cover</span>
+                    <span v-else>Volume {{ cover.volume }}</span>
+                    <span v-if="cover.url === currentThumbnail" class="primary-label"> (Active)</span>
                 </div>
             </div>
         </div>

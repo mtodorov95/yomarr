@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mtodorov95/yomarr/internal/models"
 )
 
-func DownloadSeriesCovers(client *http.Client, seriesPath string, remoteThumbnail string, remoteHistoricals []string) (string, []string, error) {
+func DownloadSeriesCovers(client *http.Client, seriesPath string, remoteThumbnail string, remoteHistoricals []models.VolumeCover) (string, []models.VolumeCover, error) {
 	if seriesPath == "" {
 		return "", nil, fmt.Errorf("cannot download covers: series path is empty")
 	}
@@ -20,33 +22,36 @@ func DownloadSeriesCovers(client *http.Client, seriesPath string, remoteThumbnai
 	}
 
 	localThumbnailRel := ""
-    if remoteThumbnail != "" {
-        parts := strings.Split(remoteThumbnail, "/")
-        fileName := parts[len(parts)-1]
-        
-        if fileName != "" {
-            destPath := filepath.Join(coversDir, fileName)
-            if err := downloadFile(client, remoteThumbnail, destPath); err == nil {
-                localThumbnailRel = filepath.Join("Covers", fileName)
-            }
-        }
-    }
+	if remoteThumbnail != "" {
+		parts := strings.Split(remoteThumbnail, "/")
+		fileName := parts[len(parts)-1]
 
-	var localHistoricalsRel []string
-	for _, remoteURL := range remoteHistoricals {
-		if remoteURL == "" {
+		if fileName != "" {
+			destPath := filepath.Join(coversDir, fileName)
+			if err := downloadFile(client, remoteThumbnail, destPath); err == nil {
+				localThumbnailRel = filepath.Join("Covers", fileName)
+			}
+		}
+	}
+
+	var localHistoricalsRel []models.VolumeCover
+	for _, remoteCover := range remoteHistoricals {
+		if remoteCover.URL == "" {
 			continue
 		}
-		
-		parts := strings.Split(remoteURL, "/")
+
+		parts := strings.Split(remoteCover.URL, "/")
 		fileName := parts[len(parts)-1]
 		if fileName == "" {
 			continue
 		}
 
 		destPath := filepath.Join(coversDir, fileName)
-		if err := downloadFile(client, remoteURL, destPath); err == nil {
-			localHistoricalsRel = append(localHistoricalsRel, filepath.Join("Covers", fileName))
+		if err := downloadFile(client, remoteCover.URL, destPath); err == nil {
+			localHistoricalsRel = append(localHistoricalsRel, models.VolumeCover{
+				Volume: remoteCover.Volume,
+				URL:    filepath.Join("Covers", fileName),
+			})
 		}
 	}
 

@@ -179,7 +179,7 @@ func mapMDStatus(status string) models.SeriesStatus {
 	}
 }
 
-func (p *MangaDexProvider) fetchAllCovers(mangaID string) (string, []string, error) {
+func (p *MangaDexProvider) fetchAllCovers(mangaID string) (string, []models.VolumeCover, error) {
 	apiURL := fmt.Sprintf("https://api.mangadex.org/cover?manga[]=%s&limit=100", url.QueryEscape(mangaID))
 	resp, err := p.Client.Get(apiURL)
 	if err != nil {
@@ -205,29 +205,32 @@ func (p *MangaDexProvider) fetchAllCovers(mangaID string) (string, []string, err
 	}
 
 	var primaryCover string
-	var historicalCovers []string
+	historicalCovers := []models.VolumeCover{}
 	var highestVolume float64 = -1.0
 
 	for _, c := range coverRes.Data {
 		coverURL := fmt.Sprintf("https://uploads.mangadex.org/covers/%s/%s", mangaID, c.Attributes.FileName)
-		historicalCovers = append(historicalCovers, coverURL)
+
+		var volNum float64 = -1.0
+		if c.Attributes.Volume != "" {
+			if num, err := strconv.ParseFloat(c.Attributes.Volume, 64); err == nil {
+				volNum = num
+			}
+		}
+
+		historicalCovers = append(historicalCovers, models.VolumeCover{
+			Volume: volNum,
+			URL:    coverURL,
+		})
 
 		if primaryCover == "" {
 			primaryCover = coverURL
 		}
 
-		if c.Attributes.Volume != "" {
-			if volNum, err := strconv.ParseFloat(c.Attributes.Volume, 64); err == nil {
-				if volNum >= highestVolume {
-					highestVolume = volNum
-					primaryCover = coverURL
-				}
-			}
+		if volNum >= highestVolume {
+			highestVolume = volNum
+			primaryCover = coverURL
 		}
-	}
-
-	if primaryCover == "" && len(historicalCovers) > 0 {
-		primaryCover = historicalCovers[0]
 	}
 
 	return primaryCover, historicalCovers, nil
@@ -296,7 +299,7 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			Status:           mapMDStatus(item.Attributes.Status),
 			AnilistID:        alIDPtr,
 			Thumbnail:        primaryCover,
-			HistoricalCovers: make([]string, 0),
+			HistoricalCovers: []models.VolumeCover{},
 			Author:           getMDAuthor(item.Relationships),
 			Artist:           getMDArtist(item.Relationships),
 			Genres:           getMDGenres(item.Attributes.Tags),

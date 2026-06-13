@@ -41,7 +41,7 @@ func (ls *LibraryScanner) StartBackgroundMetadataRefresher(interval time.Duratio
 		log.Printf("[Scanner] Background metadata refresher started. Interval: %v", interval)
 		for range ticker.C {
 			log.Println("[Scanner] Starting global metadata and chapter refresh...")
-			
+
 			allSeries, err := ls.SeriesStore.GetAll()
 			if err != nil {
 				log.Printf("[Scanner Error] Could not fetch series lists: %v", err)
@@ -53,7 +53,7 @@ func (ls *LibraryScanner) StartBackgroundMetadataRefresher(interval time.Duratio
 				if _, err := ls.RefreshSeriesMetadata(s.ID); err != nil {
 					log.Printf("[Scanner Error] Upstream sync failed for %s: %v", s.Title, err)
 				}
-				
+
 				time.Sleep(5 * time.Second)
 			}
 			log.Println("[Scanner] Global metadata sync cycle complete.")
@@ -134,7 +134,7 @@ func (ls *LibraryScanner) ScanLibrary() error {
 					Title:  cleanTitle,
 					Year:   seriesYear,
 					Status: models.SeriesUnmonitored,
-					Path: folderPath,
+					Path:   folderPath,
 				}
 
 				if err := ls.SeriesStore.Insert(&newSeries); err != nil {
@@ -499,29 +499,39 @@ func (ls *LibraryScanner) RefreshSeriesMetadata(id int64) (*models.Series, error
 		s.Genres = extSeries.Genres
 	}
 
-	if s.Path != "" && (s.Thumbnail == "" || len(s.HistoricalCovers) == 0) {
-		thumbSrc := s.Thumbnail
-		if thumbSrc == "" {
-			thumbSrc = extSeries.Thumbnail
-		}
-		histSrc := s.HistoricalCovers
-		if len(histSrc) == 0 {
-			histSrc = extSeries.HistoricalCovers
+	if s.Path != "" {
+		existingFiles := make(map[string]bool)
+		for _, hc := range s.HistoricalCovers {
+			fileName := filepath.Base(hc.URL)
+			existingFiles[fileName] = true
 		}
 
-		if thumbSrc != "" || len(histSrc) > 0 {
+		var newHistoricalCoversToDownload []models.VolumeCover
+		for _, extHC := range extSeries.HistoricalCovers {
+			parts := strings.Split(extHC.URL, "/")
+			remoteFileName := parts[len(parts)-1]
+
+			if !existingFiles[remoteFileName] {
+				newHistoricalCoversToDownload = append(newHistoricalCoversToDownload, extHC)
+			}
+		}
+
+		if s.Thumbnail == "" || len(newHistoricalCoversToDownload) > 0 {
 			log.Printf("[Metadata Service] Gathering missing tracking artwork down to: %s/Covers", s.Path)
+
 			localThumb, localHists, err := download.DownloadSeriesCovers(
 				http.DefaultClient,
 				s.Path,
-				thumbSrc,
-				histSrc,
+				extSeries.Thumbnail,
+				newHistoricalCoversToDownload,
 			)
 			if err != nil {
 				log.Printf("[Metadata Service Warning] Cover refresh incomplete for %s: %v", s.Title, err)
 			} else {
-				s.Thumbnail = localThumb
-				s.HistoricalCovers = localHists
+				if localThumb != "" {
+					s.Thumbnail = localThumb
+				}
+				s.HistoricalCovers = append(s.HistoricalCovers, localHists...)
 			}
 		}
 	}

@@ -254,9 +254,9 @@ func (h *SeriesHandler) deleteCover(w http.ResponseWriter, r *http.Request, idSt
 
 	_ = utils.DeleteSeriesFile(s.Path, coverFile)
 
-	var updatedCovers []string
+	var updatedCovers []models.VolumeCover
 	for _, c := range s.HistoricalCovers {
-		if c != coverFile {
+		if c.URL != coverFile {
 			updatedCovers = append(updatedCovers, c)
 		}
 	}
