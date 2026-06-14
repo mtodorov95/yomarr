@@ -62,7 +62,23 @@ func createTables() {
 		name TEXT NOT NULL,
 		url TEXT NOT NULL,
 		api_key TEXT,
-		priority INTEGER DEFAULT 0
+		priority INTEGER DEFAULT 0,
+		enable_rss INTEGER DEFAULT 1,
+		enable_search INTEGER DEFAULT 1,
+		additional_parameters TEXT,
+		minimum_seeders INTEGER DEFAULT 1,
+		seed_time INTEGER DEFAULT 0
+	);
+
+	CREATE TABLE IF NOT EXISTS download_clients (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		host TEXT NOT NULL,
+		port INTEGER NOT NULL,
+		use_ssl INTEGER DEFAULT 0,
+		username TEXT,
+		password TEXT,
+		category TEXT DEFAULT 'yomarr'
 	);
 	`
 

@@ -3,9 +3,11 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import type { Series } from './types'
 import ToastContainer from './components/ToastContainer.vue'
 import { useToast } from './composables/useToast'
+import { useRoute } from 'vue-router'
 
 const status = ref('loading...')
 const toast = useToast()
+const route = useRoute()
 const checkingHealth = ref(false)
 let healthIntervalId: ReturnType<typeof setInterval> | null = null
 
@@ -90,6 +92,19 @@ onUnmounted(() => {
                         <span class="nav-icon">➕</span>
                         <span class="nav-text">Add New</span>
                     </RouterLink>
+                    <RouterLink to="/settings" class="nav-item" active-class="active-nav">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-text">Settings</span>
+                    </RouterLink>
+
+                    <div v-if="route.path.startsWith('/settings')" class="sidebar-sub-nav">
+                        <RouterLink to="/settings?tab=indexers" class="sub-nav-item" :class="{ 'active-sub-nav': route.query.tab === 'indexers' || !route.query.tab }">
+                            Indexers
+                        </RouterLink>
+                        <RouterLink to="/settings?tab=download-clients" class="sub-nav-item" :class="{ 'active-sub-nav': route.query.tab === 'download-clients' }">
+                            Download Clients
+                        </RouterLink>
+                    </div>
                 </nav>
             </div>
 
@@ -253,6 +268,36 @@ onUnmounted(() => {
     color: #60a5fa;
     background-color: #0f172a;
     box-shadow: inset 4px 0 0 0 #60a5fa;
+}
+
+.sidebar-sub-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-left: 2.65rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.sub-nav-item {
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 500;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.25rem;
+    transition: all 0.15s ease;
+}
+
+.sub-nav-item:hover {
+    color: #ffffff;
+    background-color: #334155;
+}
+
+.active-sub-nav {
+    color: #60a5fa;
+    font-weight: 600;
+    background-color: rgba(96, 165, 250, 0.05);
 }
 
 .sidebar-footer {

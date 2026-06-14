@@ -1,11 +1,9 @@
 package sync
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,22 +21,14 @@ const ImportedTag = "imported"
 type DownloadMonitor struct {
 	ChapterStore db.ChapterStore
 	SeriesStore  db.SeriesStore
-	QBClient     *download.QBittorrentClient
+	Downloader   download.DownloadClient
 }
 
-type QBTorrentInfo struct {
-	Hash     string  `json:"hash"`
-	Name     string  `json:"name"`
-	Progress float64 `json:"progress"`
-	Status   string  `json:"status"`
-	Tags     string  `json:"tags"`
-}
-
-func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, qb *download.QBittorrentClient) *DownloadMonitor {
+func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, dl download.DownloadClient) *DownloadMonitor {
 	return &DownloadMonitor{
 		ChapterStore: cs,
 		SeriesStore:  ss,
-		QBClient:     qb,
+		Downloader:   dl,
 	}
 }
 
@@ -184,24 +174,12 @@ func (m *DownloadMonitor) Start() {
 }
 
 func (m *DownloadMonitor) CheckActiveDownloads() error {
-	if m.QBClient == nil {
+	if m.Downloader == nil {
 		return nil
 	}
 
-	infoURL := fmt.Sprintf("%s/api/v2/torrents/info?category=yomarr", m.QBClient.BaseURL)
-	resp, err := m.QBClient.Client.Get(infoURL)
+	torrents, err := m.Downloader.GetActiveDownloads()
 	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("qbit returned status code %d", resp.StatusCode)
-	}
-
-	var torrents []QBTorrentInfo
-	if err := json.NewDecoder(resp.Body).Decode(&torrents); err != nil {
 		return err
 	}
 
@@ -232,12 +210,11 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 		isAlreadyImported := false
 		torrentLang := "en"
 
-		tagList := strings.Split(torrent.Tags, ",")
-		for _, tag := range tagList {
-			if strings.TrimSpace(tag) == ImportedTag {
+		for _, tag := range torrent.Tags {
+			if tag == ImportedTag {
 				isAlreadyImported = true
 			}
-			if strings.TrimSpace(tag) == "raw" {
+			if tag == "raw" {
 				torrentLang = "raw"
 			}
 		}
@@ -304,7 +281,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 						}
 					}
 
-					if err := m.QBClient.AddTorrentTags(torrent.Hash, ImportedTag); err != nil {
+					if err := m.Downloader.MarkAsImported(torrent.Hash); err != nil {
 						log.Printf("[Monitor Error] Failed tagging batch torrent %s: %v", torrent.Hash, err)
 					}
 				}
@@ -364,7 +341,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 					log.Printf("[Monitor Error] Failed updating database for Ch %g: %v", ch.Number, err)
 				}
 
-				if err := m.QBClient.AddTorrentTags(torrent.Hash, ImportedTag); err != nil {
+				if err := m.Downloader.MarkAsImported(torrent.Hash); err != nil {
 					log.Printf("[Monitor Error] Failed tagging single/volume torrent %s: %v", torrent.Hash, err)
 				}
 			}

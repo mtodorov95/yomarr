@@ -12,8 +12,6 @@ import (
 	"github.com/mtodorov95/yomarr/internal/api"
 	"github.com/mtodorov95/yomarr/internal/config"
 	"github.com/mtodorov95/yomarr/internal/db"
-	"github.com/mtodorov95/yomarr/internal/download"
-	"github.com/mtodorov95/yomarr/internal/indexer"
 	"github.com/mtodorov95/yomarr/internal/metadata"
 	"github.com/mtodorov95/yomarr/internal/sync"
 )
@@ -24,27 +22,21 @@ var webAssets embed.FS
 func main() {
 	// Env
 	config.LoadEnv()
-	qbitURL := os.Getenv("QBIT_URL")
-	if qbitURL == "" { qbitURL = "http://127.0.0.1:8080" }
-	
-	qbitUser := os.Getenv("QBIT_USER")
-	if qbitUser == "" { qbitUser = "admin" }
-	
-	qbitPass := os.Getenv("QBIT_PASS")
-	if qbitPass == "" { qbitPass = "adminadmin" }
-
 	port := os.Getenv("PORT")
-	if port == "" { port = "8080" }
+	if port == "" {
+		port = "8080"
+	}
 
-	// DB
 	path := os.Getenv("DB_PATH")
 	if path == "" {
 		path = "/data/yomarr.db"
 	}
+
+	// DB
 	db.Init(path)
 
-	chapterStore := &db.SQLiteChapterStore{} 
-	seriesStore := &db.SQLiteSeriesStore{} 
+	chapterStore := &db.SQLiteChapterStore{}
+	seriesStore := &db.SQLiteSeriesStore{}
 	// Server
 	mux := http.NewServeMux()
 	client := &http.Client{}
@@ -53,19 +45,15 @@ func main() {
 	mangadex := &metadata.MangaDexProvider{Client: client}
 	aggregator := metadata.NewAggregatorMetadataProvider(mangadex, anilist)
 	// Indexer
-	nyaaIndexer := indexer.NewNyaaIndexer()
+	indexerStore := &db.SQLiteIndexerStore{}
 	// Download
-	qbClient, err := download.NewQBittorrentClient(qbitURL, qbitUser, qbitPass)
-	if err != nil {
-		log.Printf("Warning: Could not connect to qbittorrent client: %v", err)
-	}
+	clientStore := &db.SQLiteDownloadClientStore{}
 	// Sync
+	manager := sync.NewDynamicManager(indexerStore, clientStore)
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
-	nyaaEngine := sync.NewNyaaSyncEngine(chapterStore, seriesStore, nyaaIndexer, qbClient)
-	if qbClient != nil {
-		monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, qbClient)
-		monitor.Start()
-	}
+	nyaaEngine := sync.NewNyaaSyncEngine(chapterStore, seriesStore, manager, manager)
+	monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, manager)
+	monitor.Start()
 
 	scanner := sync.NewLibraryScanner(chapterStore, seriesStore, aggregator, syncEngine)
 	if err := scanner.ScanLibrary(); err != nil {
@@ -81,7 +69,7 @@ func main() {
 		Store:      seriesStore,
 		Metadata:   aggregator,
 		SyncEngine: syncEngine,
-		Scanner: scanner,
+		Scanner:    scanner,
 	}
 
 	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)
@@ -92,6 +80,9 @@ func main() {
 	indexerHandler := &api.IndexerHandler{Store: &db.SQLiteIndexerStore{}}
 	mux.HandleFunc("/api/indexers", indexerHandler.HandleIndexers)
 
+	downloadClientHandler := &api.DownloadClientHandler{Store: &db.SQLiteDownloadClientStore{}}
+	mux.HandleFunc("/api/download-clients", downloadClientHandler.HandleDownloadClients)
+
 	searchHandler := api.NewSearchHandler(nyaaEngine)
 	mux.HandleFunc("/api/series/search-missing", searchHandler.SearchMissing)
 
@@ -99,7 +90,7 @@ func main() {
 	mux.HandleFunc("/api/library/scan", libraryHandler.ScanLibrary)
 
 	systemHandler := api.NewSystemHandler(seriesStore, chapterStore)
-    mux.HandleFunc("/api/system/stats", systemHandler.HandleSystemStats)
+	mux.HandleFunc("/api/system/stats", systemHandler.HandleSystemStats)
 
 	// Assets
 	mux.HandleFunc("/api/proxy-cover", api.ProxyCoverHandler)
@@ -112,35 +103,35 @@ func main() {
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        filePath := r.URL.Path
-        if filePath == "" || filePath == "/" {
-            filePath = "index.html"
-        } else if filePath[0] == '/' {
-            filePath = filePath[1:]
-        }
+		filePath := r.URL.Path
+		if filePath == "" || filePath == "/" {
+			filePath = "index.html"
+		} else if filePath[0] == '/' {
+			filePath = filePath[1:]
+		}
 
-        file, err := dist.Open(filePath)
-        if err == nil {
-            file.Close()
-            http.FileServer(http.FS(dist)).ServeHTTP(w, r)
-            return
-        }
+		file, err := dist.Open(filePath)
+		if err == nil {
+			file.Close()
+			http.FileServer(http.FS(dist)).ServeHTTP(w, r)
+			return
+		}
 
-        indexFile, err := dist.Open("index.html")
-        if err != nil {
-            http.Error(w, "index.html not found in embedded assets", http.StatusInternalServerError)
-            return
-        }
-        defer indexFile.Close()
+		indexFile, err := dist.Open("index.html")
+		if err != nil {
+			http.Error(w, "index.html not found in embedded assets", http.StatusInternalServerError)
+			return
+		}
+		defer indexFile.Close()
 
-        stat, err := indexFile.Stat()
-        if err != nil {
-            http.Error(w, "Failed to read index.html info", http.StatusInternalServerError)
-            return
-        }
+		stat, err := indexFile.Stat()
+		if err != nil {
+			http.Error(w, "Failed to read index.html info", http.StatusInternalServerError)
+			return
+		}
 
-        http.ServeContent(w, r, "index.html", stat.ModTime(), indexFile.(io.ReadSeeker))
-    })
+		http.ServeContent(w, r, "index.html", stat.ModTime(), indexFile.(io.ReadSeeker))
+	})
 
 	log.Printf("Server starting on port %s...", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
