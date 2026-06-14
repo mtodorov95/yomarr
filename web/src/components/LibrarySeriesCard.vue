@@ -96,7 +96,7 @@ const truncatedTitle = computed(() => {
 
             <div 
                 class="monitoring-progress-wrapper"
-                :title="`Tracking Status: ${series.status} | Progress: ${getCompletionPercentage()}%`"
+                :title="`Status: ${series.status} | Progress: ${getCompletionPercentage()}%`"
             >
                 <div class="progress-track-bg"></div>
                 <div 

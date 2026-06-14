@@ -24,7 +24,7 @@ func main() {
 	config.LoadEnv()
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "9191"
 	}
 
 	path := os.Getenv("DB_PATH")
@@ -57,10 +57,10 @@ func main() {
 
 	scanner := sync.NewLibraryScanner(chapterStore, seriesStore, aggregator, syncEngine)
 	if err := scanner.ScanLibrary(); err != nil {
-		log.Printf("[Error] Initial library boot scan failed: %v", err)
+		log.Printf("[Scanner] Initial library boot scan failed: %v", err)
 	}
 	scanner.StartBackgroundScan(6 * time.Hour)
-	scanner.StartBackgroundMetadataRefresher(24 * time.Hour)
+	scanner.StartBackgroundMetadataRefresher(12 * time.Hour)
 
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)
@@ -119,22 +119,22 @@ func main() {
 
 		indexFile, err := dist.Open("index.html")
 		if err != nil {
-			http.Error(w, "index.html not found in embedded assets", http.StatusInternalServerError)
+			http.Error(w, "[Server] index.html not found in embedded assets", http.StatusInternalServerError)
 			return
 		}
 		defer indexFile.Close()
 
 		stat, err := indexFile.Stat()
 		if err != nil {
-			http.Error(w, "Failed to read index.html info", http.StatusInternalServerError)
+			http.Error(w, "[Server] Failed to read index.html info", http.StatusInternalServerError)
 			return
 		}
 
 		http.ServeContent(w, r, "index.html", stat.ModTime(), indexFile.(io.ReadSeeker))
 	})
 
-	log.Printf("Server starting on port %s...", port)
+	log.Printf("[Server] Server starting on port %s...", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+		log.Fatalf("[Server] Server failed to start: %v", err)
 	}
 }

@@ -30,6 +30,7 @@ const groupedChapters = ref<GroupedChapter[]>([])
 const loading = ref(true)
 const searching = ref(false)
 const refreshing = ref(false)
+const updatingStatus = ref(false)
 
 const activeTab = ref<'chapters' | 'covers'>('chapters')
 
@@ -39,7 +40,7 @@ async function loadPageData() {
     loading.value = true
     try {
         const seriesId = Number(props.id)
-        
+
         const seriesRes = await fetch(`/api/series?id=${seriesId}`)
         if (seriesRes.ok) {
             series.value = await seriesRes.json() ?? null
@@ -64,12 +65,12 @@ async function refreshMetadata() {
             method: 'POST'
         })
         if (!res.ok) throw new Error('Refresh request failed')
-        
+
         const updatedData = await res.json()
         if (updatedData) {
             series.value = updatedData
         }
-        
+
         toast.success('Metadata and art synced from upstream providers!')
     } catch (e) {
         console.error(e)
@@ -139,12 +140,46 @@ async function handleRemoveCover(coverFile: string) {
         })
 
         if (!res.ok) throw new Error('Delete execution rejected')
-        
+
         series.value = await res.json()
         toast.info('Cover wiped from storage disk')
     } catch (e) {
         console.error(e)
         toast.error('Failed to eliminate cover artwork')
+    }
+}
+
+async function toggleMonitorStatus() {
+    if (!series.value || updatingStatus.value) return
+
+    updatingStatus.value = true
+    const previousStatus = series.value.status
+
+    const isCurrentlyUnmonitored = previousStatus?.toLowerCase() === 'unmonitored'
+    series.value.status = isCurrentlyUnmonitored ? 'Ongoing' : 'Unmonitored'
+
+    try {
+        const res = await fetch('/api/series', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(series.value)
+        })
+
+        if (!res.ok) throw new Error('Status modification update rejected by database layer')
+
+        if (series.value.status === 'Unmonitored') {
+            toast.info(`Stopped tracking automation loops for: ${series.value.title}`)
+        } else {
+            toast.success(`Resumed missing chapter tracking automation for: ${series.value.title}`)
+        }
+    } catch (e) {
+        console.error(e)
+        toast.error('Failed to update monitoring status')
+        if (series.value) {
+            series.value.status = previousStatus
+        }
+    } finally {
+        updatingStatus.value = false
     }
 }
 
@@ -168,12 +203,8 @@ onMounted(loadPageData)
         <template v-else>
             <div class="arr-series-banner">
                 <div class="banner-poster-container">
-                    <img 
-                        v-if="series.thumbnail" 
-                        :src="getAssetUrl(series.thumbnail, series.path)" 
-                        :alt="series.title" 
-                        class="banner-poster-img"
-                    />
+                    <img v-if="series.thumbnail" :src="getAssetUrl(series.thumbnail, series.path)" :alt="series.title"
+                        class="banner-poster-img" />
                     <div v-else class="banner-poster-fallback">No Cover</div>
                 </div>
 
@@ -183,21 +214,15 @@ onMounted(loadPageData)
                             ← Back to Library
                         </RouterLink>
 
-                        <div class="banner-actions-wrapper" >
-                            <button 
-                                @click="refreshMetadata"
-                                :disabled="refreshing || searching"
-                                class="arr-action-btn refresh-accent"
-                            >
+                        <div class="banner-actions-wrapper">
+                            <button @click="refreshMetadata" :disabled="refreshing || searching"
+                                class="arr-action-btn refresh-accent">
                                 <span>{{ refreshing ? '⏳' : '🔄' }}</span>
                                 {{ refreshing ? 'Syncing...' : 'Refresh Metadata' }}
                             </button>
 
-                            <button 
-                                @click="searchMissingChapters"
-                                :disabled="searching || refreshing"
-                                class="arr-action-btn search-accent"
-                            >
+                            <button @click="searchMissingChapters" :disabled="searching || refreshing"
+                                class="arr-action-btn search-accent">
                                 <span>{{ searching ? '⏳' : '🔍' }}</span>
                                 {{ searching ? 'Searching missing...' : 'Search Missing' }}
                             </button>
@@ -205,10 +230,35 @@ onMounted(loadPageData)
                     </div>
 
                     <div class="series-identity-block">
-                        <h1 class="main-series-headline">{{ series.title }}</h1>
-                        
-                        <div v-if="series.author" class="author-label-line">
-                            by <span class="author-name-highlight">{{ series.author }}</span>
+                        <div class="series-headline-row">
+                            <button @click="toggleMonitorStatus" class="monitor-toggle-btn"
+                                :class="{ 'is-unmonitored': series.status?.toLowerCase() === 'unmonitored' }"
+                                :disabled="updatingStatus"
+                                :title="series.status?.toLowerCase() === 'unmonitored' ? 'Click to Start Monitoring' : 'Click to Stop Monitoring'"
+                                aria-label="Toggle series monitoring tracking status state">
+                                <svg v-if="series.status?.toLowerCase() !== 'unmonitored'"
+                                    xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                                    class="monitor-icon">
+                                    <path
+                                        d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.235 1.34 1.96 2.343 1.249l4.773-3.385a1.25 1.25 0 0 1 1.458 0l4.773 3.385c1.003.711 2.343-.014 2.343-1.249V3.375c0-1.036-.84-1.875-1.875-1.875H5.625Z" />
+                                </svg>
+                                <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="2.5" stroke="currentColor" class="monitor-icon">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M17.593 3.322c1.1.154 1.907 1.1 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.086.807-2.03 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                                </svg>
+                            </button>
+                            <h1 class="main-series-headline">{{ series.title }}</h1>
+                        </div>
+
+                        <div v-if="series.author || series.artist" class="author-label-line">
+                            <span v-if="series.author">
+                                by <span class="author-name-highlight">{{ series.author }}</span>
+                            </span>
+                            <span v-if="series.author && series.artist" class="credit-separator"> · </span>
+                            <span v-if="series.artist">
+                                art by <span class="author-name-highlight">{{ series.artist }}</span>
+                            </span>
                         </div>
 
                         <div class="arr-metadata-pill-row">
@@ -219,11 +269,9 @@ onMounted(loadPageData)
                                 {{ series.status || 'Unknown State' }}
                             </span>
                             <template v-if="series.genres">
-                                <span 
-                                    v-for="genre in (Array.isArray(series.genres) ? series.genres : String(series.genres).split(','))" 
-                                    :key="genre" 
-                                    class="arr-pill genre-pill"
-                                >
+                                <span
+                                    v-for="genre in (Array.isArray(series.genres) ? series.genres : String(series.genres).split(','))"
+                                    :key="genre" class="arr-pill genre-pill">
                                     {{ genre.trim() }}
                                 </span>
                             </template>
@@ -235,16 +283,12 @@ onMounted(loadPageData)
                     </div>
 
                     <div class="arr-sub-tab-navigation">
-                        <button 
-                            @click="activeTab = 'chapters'" 
-                            :class="['navigation-tab-btn', activeTab === 'chapters' ? 'is-active' : '']"
-                        >
+                        <button @click="activeTab = 'chapters'"
+                            :class="['navigation-tab-btn', activeTab === 'chapters' ? 'is-active' : '']">
                             Chapters ({{ groupedChapters.length }})
                         </button>
-                        <button 
-                            @click="activeTab = 'covers'" 
-                            :class="['navigation-tab-btn', activeTab === 'covers' ? 'is-active' : '']"
-                        >
+                        <button @click="activeTab = 'covers'"
+                            :class="['navigation-tab-btn', activeTab === 'covers' ? 'is-active' : '']">
                             Covers ({{ series.historical_covers?.length ?? 0 }})
                         </button>
                     </div>
@@ -255,22 +299,24 @@ onMounted(loadPageData)
                 <ChapterTable :chapters="groupedChapters" />
             </div>
 
-            <SeriesCovers 
-                v-else-if="activeTab === 'covers'" 
-                :covers="series.historical_covers" 
-                :currentThumbnail="series.thumbnail"
-                :seriesPath="series.path"
-                @promote="handlePromoteCover"
-                @remove="handleRemoveCover"
-            />
+            <SeriesCovers v-else-if="activeTab === 'covers'" :covers="series.historical_covers"
+                :currentThumbnail="series.thumbnail" :seriesPath="series.path" @promote="handlePromoteCover"
+                @remove="handleRemoveCover" />
         </template>
     </div>
 </template>
 
 <style scoped>
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(2px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .detail-container {
@@ -422,10 +468,60 @@ onMounted(loadPageData)
     line-height: 1.15;
 }
 
+.series-headline-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.monitor-toggle-btn {
+    background: transparent;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #38bdf8;
+    border-radius: 0.375rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.monitor-toggle-btn:hover:not(:disabled) {
+    background-color: #1f2937;
+    transform: scale(1.1);
+}
+
+.monitor-toggle-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.monitor-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.2));
+}
+
+.monitor-toggle-btn.is-unmonitored {
+    color: #ef4444;
+}
+
+.monitor-toggle-btn.is-unmonitored .monitor-icon {
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.1));
+}
+
 .author-label-line {
     font-size: 0.9rem;
     color: #9ca3af;
     margin-top: 0.25rem;
+}
+
+.credit-separator {
+    color: #4b5563;
+    margin: 0 0.25rem;
+    font-weight: bold;
 }
 
 .author-name-highlight {

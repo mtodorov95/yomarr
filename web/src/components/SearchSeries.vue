@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, onUnmounted } from 'vue'
 import type { Series } from '../types'
 import SearchSeriesCard from './SearchSeriesCard.vue';
 import { useToast } from '@/composables/useToast';
@@ -9,6 +9,8 @@ const results = ref<Series[]>([])
 const libraryIds = ref<Set<string>>(new Set())
 const searching = ref(false)
 const toast = useToast()
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 async function fetchLibraryIds() {
     try {
@@ -29,7 +31,10 @@ async function fetchLibraryIds() {
 }
 
 async function search() {
-    if (!query.value.trim()) return
+    if (!query.value.trim()) {
+        results.value = []
+        return
+    }
     searching.value = true
     try {
         await fetchLibraryIds()
@@ -48,6 +53,22 @@ async function search() {
         searching.value = false
     }
 }
+
+watch(query, (newQuery) => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    
+    const trimmed = newQuery.trim()
+    
+    if (!trimmed) {
+        results.value = []
+        searching.value = false
+        return
+    }
+
+    debounceTimer = setTimeout(() => {
+        search()
+    }, 500)
+})
 
 function isAlreadyInLibrary(item: Series): boolean {
     if (item.mangadex_id && libraryIds.value.has(`md:${item.mangadex_id}`)) return true
@@ -85,6 +106,10 @@ async function handleImport({ series, onStart, onEnd }: { series: Series, onStar
 onMounted(() => {
     fetchLibraryIds()
 })
+
+onUnmounted(() => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+})
 </script>
 
 <template>
@@ -93,18 +118,11 @@ onMounted(() => {
     <div class="search-box">
       <input 
         v-model="query" 
-        @keyup.enter="search"
         type="text" 
         placeholder="Enter manga title..." 
         class="search-input"
       />
-      <button 
-        @click="search" 
-        :disabled="searching" 
-        class="search-button"
-      >
-        {{ searching ? '...' : 'Search' }}
-      </button>
+      <span v-if="searching" class="search-inline-spinner">⏳ Searching...</span>
     </div>
 
     <div v-if="results && results.length > 0" class="results-list">
@@ -155,20 +173,21 @@ onMounted(() => {
     outline: none;
     border-color: #3b82f6;
 }
-.search-button {
-    background-color: #2563eb;
-    color: #ffffff;
-    font-weight: 700;
-    padding: 0.5rem 1.5rem;
-    border-radius: 0.5rem;
-    border: none;
-    cursor: pointer;
+
+.search-inline-spinner {
+    font-size: 0.85rem;
+    color: #60a5fa;
+    align-self: center;
+    padding-left: 0.5rem;
+    white-space: nowrap;
+    animation: pulse 1.5s infinite;
 }
-.search-button:disabled {
-    background-color: #334155;
-    color: #94a3b8;
-    cursor: not-allowed;
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }
+
 .results-list {
     display: flex;
     flex-direction: column;

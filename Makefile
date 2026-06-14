@@ -1,5 +1,5 @@
 APP_NAME=yomarr
-PORT=8080
+PORT=9191
 
 build:
 	docker build -t $(APP_NAME) .

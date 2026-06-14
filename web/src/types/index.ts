@@ -16,6 +16,7 @@ export interface Series {
   thumbnail?: string;
   historical_covers: VolumeCover[];
   author?: string | null;
+  artist?: string | null;
   genres: string[];
   description?: string | null;
 }

@@ -29,5 +29,5 @@ Yomarr follows the "Arr" philosophy: Index -> Search -> Grab -> Process -> Organ
 - **History Table:** Event logs for auditing.
 
 ## 4. Filesystem Layout
-- Base Path: `/data/manga`
+- Base Path: `/Manga`
 - Structure: `{Series Title} ({Year}) [{ProviderID}]/{Series Title} - c{ChapterNum} [{Group}].cbz`

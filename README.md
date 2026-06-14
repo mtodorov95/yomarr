@@ -1,30 +1,46 @@
-# Yomarr
+# Yomarr 📚
 
-**Yomarr** is an automated manga collection manager (a Sonarr/Radarr equivalent for Manga). It monitors your favorite series for new chapters, handles the downloads via your preferred client, and organizes them into a clean, tagged library.
+**Yomarr** is an automated manga collection manager and tracker (an "Arr" equivalent for Manga). It monitors your favorite series for new chapters, handles tracking and downloads via your preferred client, and organizes them into a clean, standardized local library.
 
-## Project Goals
-- **Automated Tracking:** Automatically find and fetch new chapters as they release.
-- **Metadata Management:** Enrich your collection with high-quality metadata from AniList, MyAnimeList, and MangaDex.
-- **Library Organization:** Standardize folder structures and file naming.
-- **Portable Format:** Convert downloads to `.cbz` with embedded `ComicInfo.xml` for maximum compatibility with readers like Kavita or Komga.
+---
 
-## High-Level Architecture
-- **Indexer Manager:** Connects to MangaDex, generic RSS, and other sources.
-- **Metadata Engine:** Maps series to global IDs and manages covers/tags.
-- **Download Handler:** Bridges with clients like qBittorrent, Aria2, or custom scrapers.
-- **Post-Processor:** Handles image-to-archive conversion and library placement.
+## ⚠️ Disclaimer & Project Status
 
-## Tech Stack
-- **Backend:** Go (Golang)
-- **Frontend:** Vue 3 + Vite + Tailwind CSS
-- **Database:** SQLite
-- **Communication:** REST API + WebSockets
+Yomarr is now in **Beta**. 
 
-## Status
-Pre-alpha. Currently in the design and initialization phase.
+While the core dashboard, database schema, metadata sync loops, and basic automation pipelines are fully functional and stable enough for daily deployment, this is still an active passion project. 
 
-ALTER TABLE indexers ADD COLUMN enable_rss INTEGER DEFAULT 1;
-ALTER TABLE indexers ADD COLUMN enable_search INTEGER DEFAULT 1;
-ALTER TABLE indexers ADD COLUMN additional_parameters TEXT;
-ALTER TABLE indexers ADD COLUMN minimum_seeders INTEGER DEFAULT 1;
-ALTER TABLE indexers ADD COLUMN seed_time INTEGER DEFAULT 0;
+* **Development Pace:** This project is worked on entirely in my free time. Updates will happen whenever I have availability.
+* **The 1.0 Milestone:** Version `1.0` will be declared once **every core goal listed below is fully implemented**. Features developed after the 1.0 milestone will be considered "nice-to-haves" and are not an immediate priority.
+* **Contributions:** Public contributions, bug reports, and pull requests are highly welcome! Please check the limitations below before opening major feature requests.
+
+---
+
+## 🚀 Current Supported Features vs. Roadmap
+
+To keep expectations transparent for early users, here is exactly what Yomarr handles right now versus what is currently planned:
+
+### 🟢 What Works Right Now
+* **Supported Indexers:** Nyaa.si.
+* **Supported Download Clients:** qBittorrent.
+* **Tracked Languages:** English (`EN`) and `RAW` only.
+
+### 🟡 What is Planned (Roadmap to 1.0)
+* **Post-Processor Engine:** Automated raw image validation, custom directory packing into `.cbz` zip formats, and inline `ComicInfo.xml` metadata injection for instant compatibility with external readers like Kavita or Komga.
+* **Expanded Metadata Aggregation:** Deep secondary metadata mapping profiles sourcing tags, structural descriptions, and tracking links from AniList, MyAnimeList, and MangaDex.
+* **Flexibility:** Support for additional download clients (e.g., Aria2) and generic RSS indexing frames.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Backend:** Go (Golang)
+* **Frontend:** Vue 3 (Vite + Vanilla CSS)
+* **Database:** SQLite
+* **Communication:** REST API
+
+---
+
+## 📦 Getting Started
+
+*(Placeholder: Add your quick-start docker execution block or docker-compose example configuration file profiles here)*

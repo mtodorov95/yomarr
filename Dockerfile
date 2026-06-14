@@ -19,5 +19,5 @@ FROM alpine:latest
 WORKDIR /app/
 COPY --from=builder /app/yomarr .
 
-EXPOSE 8080
+EXPOSE 9191
 CMD ["./yomarr"]

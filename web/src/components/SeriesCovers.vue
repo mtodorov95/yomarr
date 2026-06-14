@@ -15,14 +15,24 @@ const emit = defineEmits<{
 }>()
 
 const hasCovers = computed(() => props.covers && props.covers.length > 0)
-console.log(props.covers)
+
+const sortedCovers = computed(() => {
+    if (!props.covers) return []
+    
+    return [...props.covers].sort((a, b) => {
+        const volA = a.volume === -1 ? -Infinity : a.volume
+        const volB = b.volume === -1 ? -Infinity : b.volume
+        
+        return volB - volA
+    })
+})
 </script>
 
 <template>
     <div class="tab-pane-view">
         <div v-if="hasCovers" class="arr-covers-fluid-grid">
             <div 
-                v-for="(cover, _index) in covers" 
+                v-for="(cover, _index) in sortedCovers" 
                 :key="cover.url" 
                 class="arr-cover-archive-card"
                 :class="{ 'is-primary-border': cover.url === currentThumbnail }"

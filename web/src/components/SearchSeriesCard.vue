@@ -21,7 +21,7 @@ const coverSrc = computed(() => {
 
 function triggerImport() {
     if (props.inLibrary || importing.value) return
-    
+
     emit('import', {
         series: { ...props.item, localPath: localPath.value },
         onStart: () => { importing.value = true },
@@ -34,13 +34,7 @@ function triggerImport() {
     <div class="card-container" :class="{ 'in-library-card': inLibrary }">
         <div class="card-content">
             <div class="thumbnail-wrapper">
-                <img 
-                    v-if="coverSrc" 
-                    :src="coverSrc" 
-                    :alt="item.title" 
-                    class="series-thumbnail"
-                    loading="lazy"
-                />
+                <img v-if="coverSrc" :src="coverSrc" :alt="item.title" class="series-thumbnail" loading="lazy" />
                 <div v-else class="thumbnail-fallback">
                     <span>No Image</span>
                 </div>
@@ -52,25 +46,16 @@ function triggerImport() {
                         <p class="series-title">{{ item.title }}</p>
                         <p class="series-status">Status: <span class="status-badge">{{ item.status }}</span></p>
                     </div>
-                    
+
                     <div v-if="inLibrary" class="library-badge">
                         In Library
                     </div>
                 </div>
 
                 <div v-if="!inLibrary" class="action-row">
-                    <input 
-                        v-model="localPath" 
-                        :disabled="importing"
-                        type="text" 
-                        placeholder="Storage path..."
-                        class="path-input" 
-                    />
-                    <button 
-                        @click="triggerImport"
-                        :disabled="importing"
-                        class="import-button"
-                    >
+                    <input v-model="localPath" :disabled="importing" type="text" placeholder="Storage path..."
+                        class="path-input" />
+                    <button @click="triggerImport" :disabled="importing" class="import-button">
                         {{ importing ? 'Importing...' : 'Import' }}
                     </button>
                 </div>
@@ -193,6 +178,13 @@ function triggerImport() {
     gap: 0.5rem;
     align-items: center;
     width: 100%;
+}
+
+@media (max-width: 640px) {
+    .action-row {
+        flex-direction: column;
+        align-items: start;
+    }
 }
 
 .path-input {
