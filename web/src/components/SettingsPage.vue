@@ -1,557 +1,258 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useToast } from '../composables/useToast'
-import { DownloadClient, Indexer } from '@/types'
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import SettingsModal from '../components/SettingsModal.vue'
 
-const toast = useToast()
-const currentTab = ref<'indexers' | 'download-clients'>('indexers')
-const isSaving = ref(false)
+const route = useRoute()
 
-const nyaaConfig = ref<Indexer>({
-    name: 'Nyaa',
-    url: 'https://nyaa.si',
-    priority: 1,
-    enable_rss: true,
-    enable_search: true,
-    additional_parameters: '&cats=3_1&filter=1',
-    minimum_seeders: 1,
-    seed_time: 0
-})
+const activeTab = computed(() => (route.query.tab as string) || 'indexers')
 
-const qbitConfig = ref<DownloadClient>({
-    name: 'qBittorrent',
-    host: 'localhost',
-    port: 8080,
-    use_ssl: false,
-    username: 'admin',
-    password: '',
-    category: 'yomarr'
-})
+const indexers = ref([
+    { id: 1, name: 'Nyaa', protocol: 'Torrent', url: 'https://nyaa.si', enabled: true }
+])
 
-async function loadSettings() {
-    try {
-        const idxRes = await fetch('/api/indexers')
-        if (idxRes.ok) {
-            const indexers: Indexer[] = await idxRes.json()
-            const foundNyaa = indexers.find(i => i.name.toLowerCase() === 'nyaa')
-            if (foundNyaa) nyaaConfig.value = foundNyaa
-        }
+const downloadClients = ref([
+    { id: 1, name: 'qBittorrent', protocol: 'Torrent', host: 'localhost', enabled: true }
+])
 
-        const dcRes = await fetch('/api/download-clients')
-        if (dcRes.ok) {
-            const clients: DownloadClient[] = await dcRes.json()
-            const foundQbit = clients.find(c => c.name.toLowerCase() === 'qbittorrent')
-            if (foundQbit) qbitConfig.value = foundQbit
-        }
-    } catch (e) {
-        console.error(e)
-        toast.error('Failed to load system settings profile')
-    }
+const isModalOpen = ref(false)
+const modalType = ref<'indexer' | 'download-client'>('indexer')
+
+function openAddModal() {
+    modalType.value = activeTab.value === 'indexers' ? 'indexer' : 'download-client'
+    isModalOpen.value = true
 }
 
-async function saveIndexer() {
-    isSaving.value = true
-    const method = nyaaConfig.value.id ? 'PUT' : 'POST'
-    try {
-        const res = await fetch('/api/indexers', {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(nyaaConfig.value)
+function onSaveConfig(payload: { type: string; preset: string; data: any }) {
+    if (payload.type === 'indexer') {
+        indexers.value.push({
+            id: Date.now(),
+            name: payload.data.name,
+            protocol: 'Torrent',
+            url: payload.data.url || 'Custom API Target',
+            enabled: true
         })
-        if (!res.ok) throw new Error('Save failed')
-        const updatedData = await res.json()
-        nyaaConfig.value = updatedData
-        toast.success('Nyaa configuration saved successfully')
-    } catch (e) {
-        console.error(e)
-        toast.error('Failed to preserve indexer updates')
-    } finally {
-        isSaving.value = false
-    }
-}
-
-async function saveDownloadClient() {
-    isSaving.value = true
-    const method = qbitConfig.value.id ? 'PUT' : 'POST'
-    try {
-        const res = await fetch('/api/download-clients', {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(qbitConfig.value)
+    } else {
+        downloadClients.value.push({
+            id: Date.now(),
+            name: payload.data.name,
+            protocol: 'Torrent',
+            host: payload.data.host || '127.0.0.1',
+            enabled: true
         })
-        if (!res.ok) throw new Error('Save failed')
-        const updatedData = await res.json()
-        qbitConfig.value = updatedData
-        toast.success('qBittorrent configuration saved successfully')
-    } catch (e) {
-        console.error(e)
-        toast.error('Failed to preserve client link parameters')
-    } finally {
-        isSaving.value = false
     }
 }
-
-onMounted(() => {
-    loadSettings()
-})
 </script>
+
 <template>
-    <div class="settings-dashboard">
-        <header class="settings-header">
-            <h1 class="page-title">Settings</h1>
-            <p class="page-subtitle">Configure tracker indexers and automatic download dispatches.</p>
-        </header>
+    <div class="settings-view">
+        <div v-if="activeTab === 'indexers'" class="tab-content">
+            <header class="tab-header">
+                <h2>Indexers</h2>
+                <p class="tab-subtitle">Configure torrent trackers and Usenet indexers for dynamic content monitoring.</p>
+            </header>
+            <hr class="section-divider" />
 
-        <div class="settings-content-container">
-            
-            <nav class="settings-top-nav">
-                <button 
-                    class="top-nav-btn" 
-                    :class="{ 'is-active': currentTab === 'indexers' }"
-                    @click="currentTab = 'indexers'"
-                >
-                    <span class="btn-icon">🌐</span> Indexers
-                </button>
-                <button 
-                    class="top-nav-btn" 
-                    :class="{ 'is-active': currentTab === 'download-clients' }"
-                    @click="currentTab = 'download-clients'"
-                >
-                    <span class="btn-icon">📥</span> Download Clients
-                </button>
-            </nav>
-
-            <main class="settings-card">
-                
-                <div v-if="currentTab === 'indexers'" class="settings-card-content">
-                    <div class="card-header-row">
-                        <img src="https://nyaa.si/static/favicon.png" class="client-avatar-ico" alt="" @error="(e: any) => e.target.style.display='none'"/>
-                        <h2>Nyaa Tracker Profile</h2>
+            <div class="cards-grid">
+                <div v-for="indexer in indexers" :key="indexer.id" class="entry-card">
+                    <div class="card-main">
+                        <span class="card-avatar">🌐</span>
+                        <div class="card-details">
+                            <h3 class="card-title">{{ indexer.name }}</h3>
+                            <span class="card-meta">{{ indexer.protocol }} / {{ indexer.url }}</span>
+                        </div>
                     </div>
-                    <hr class="card-divider"/>
-                    
-                    <form @submit.prevent="saveIndexer" class="form-semantic-flex">
-                        
-                        <div class="form-row flex-row-align">
-                            <div class="form-field f-width-sm">
-                                <label>Minimum Seeders</label>
-                                <input type="number" v-model.number="nyaaConfig.minimum_seeders" min="0" required />
-                            </div>
-
-                            <div class="form-field f-width-sm">
-                                <label>Seed Retention Limit (Minutes)</label>
-                                <input type="number" v-model.number="nyaaConfig.seed_time" min="0" required />
-                                <small class="input-hint hint-center">0 means keep seeding indefinitely</small>
-                            </div>
-
-                            <div class="form-field f-width-sm">
-                                <label>Query Priority</label>
-                                <input type="number" v-model.number="nyaaConfig.priority" required />
-                            </div>
-                        </div>
-
-                        <div class="form-row flex-row-align f-width-full">
-                            
-                            <div class="form-col f-width-60">
-                                <div class="form-field">
-                                    <label>Base URL</label>
-                                    <input type="url" v-model="nyaaConfig.url" required placeholder="https://nyaa.si" />
-                                </div>
-                                <div class="form-field">
-                                    <label>Additional URL Parameters</label>
-                                    <input type="text" v-model="nyaaConfig.additional_parameters" placeholder="&cats=1_0&filter=1" />
-                                </div>
-                            </div>
-
-                            <div class="form-col form-checkbox-group f-width-40">
-                                <label class="toggle-control-label">
-                                    <input type="checkbox" v-model="nyaaConfig.enable_search" />
-                                    <span>Enable Automated Dynamic Search Queries</span>
-                                </label>
-                                <label class="toggle-control-label">
-                                    <input type="checkbox" v-model="nyaaConfig.enable_rss" />
-                                    <span>Enable Periodic Automated RSS Monitoring</span>
-                                </label>
-                            </div>
-                        </div>
-                    </form>
+                    <span class="status-indicator enabled">Enabled</span>
                 </div>
 
-                <div v-if="currentTab === 'download-clients'" class="settings-card-content">
-                    <div class="card-header-row">
-                        <span class="client-avatar-ico text-ico">⚡</span>
-                        <h2>qBittorrent Daemon Endpoint</h2>
+                <button class="add-entry-card" @click="openAddModal">
+                    <span class="add-plus">+</span>
+                </button>
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'download-clients'" class="tab-content">
+            <header class="tab-header">
+                <h2>Download Clients</h2>
+                <p class="tab-subtitle">Configure automated completion managers and backend downloading daemons.</p>
+            </header>
+            <hr class="section-divider" />
+
+            <div class="cards-grid">
+                <div v-for="client in downloadClients" :key="client.id" class="entry-card">
+                    <div class="card-main">
+                        <span class="card-avatar text-avatar">⚡</span>
+                        <div class="card-details">
+                            <h3 class="card-title">{{ client.name }}</h3>
+                            <span class="card-meta">{{ client.protocol }} / {{ client.host }}</span>
+                        </div>
                     </div>
-                    <hr class="card-divider"/>
-
-                    <form @submit.prevent="saveDownloadClient" class="form-semantic-flex">
-                        
-                        <div class="form-row flex-row-align f-width-full f-wrap-s">
-                            <div class="form-field f-width-vsm">
-                                <label>Port</label>
-                                <input type="number" v-model.number="qbitConfig.port" required placeholder="8080" />
-                            </div>
-                            
-                            <div class="form-field checkbox-inline">
-                                <label class="toggle-control-label">
-                                    <input type="checkbox" v-model="qbitConfig.use_ssl" />
-                                    <span>Use Secure SSL Connection (HTTPS)</span>
-                                </label>
-                            </div>
-
-                            <div class="form-field f-width-md">
-                                <label>WebUI Username</label>
-                                <input type="text" v-model="qbitConfig.username" />
-                            </div>
-
-                            <div class="form-field f-width-md">
-                                <label>WebUI Password</label>
-                                <input type="password" v-model="qbitConfig.password" placeholder="••••••••" />
-                            </div>
-                        </div>
-
-                        <div class="form-row flex-row-align f-width-full f-wrap-xs">
-                            <div class="form-field f-width-half">
-                                <label>Host/IP Address</label>
-                                <input type="text" v-model="qbitConfig.host" required placeholder="localhost" />
-                            </div>
-
-                            <div class="form-field f-width-half">
-                                <label>Download Manager Routing Category</label>
-                                <input type="text" v-model="qbitConfig.category" required placeholder="yomarr" />
-                                <small class="input-hint">Saves assets under a dedicated category boundary within qBittorrent</small>
-                            </div>
-                        </div>
-                    </form>
+                    <span class="status-indicator enabled">Enabled</span>
                 </div>
 
-            </main>
+                <button class="add-entry-card" @click="openAddModal">
+                    <span class="add-plus">+</span>
+                </button>
+            </div>
         </div>
 
-        <div class="floating-submit-control">
-            <button 
-                class="action-save-btn" 
-                :class="{ 'is-loading': isSaving }"
-                :disabled="isSaving"
-                @click="currentTab === 'indexers' ? saveIndexer() : saveDownloadClient()"
-            >
-                {{ isSaving ? '⏳ Preserve Setup' : '💾 Save Config' }}
-            </button>
+        <div v-if="activeTab !== 'indexers' && activeTab !== 'download-clients'" class="tab-content">
+            <header class="tab-header">
+                <h2>{{ activeTab.replace('-', ' ') }}</h2>
+                <p class="tab-subtitle">Configuration block placeholder.</p>
+            </header>
+            <hr class="section-divider" />
+            <div class="empty-state-notice">This segment layout is ready for your unique local controls.</div>
         </div>
+
+        <SettingsModal 
+            :is-open="isModalOpen" 
+            :type="modalType" 
+            @close="isModalOpen = false" 
+            @save="onSaveConfig" 
+        />
     </div>
 </template>
 
 <style scoped>
-.settings-dashboard, 
-.settings-dashboard * {
-    box-sizing: border-box;
+.settings-view {
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
 }
 
-.settings-dashboard {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    color: #e2e8f0;
+.tab-header h2 {
+    font-size: 1.65rem;
+    font-weight: 400;
+    margin: 0 0 0.4rem 0;
+    color: #ffffff;
 }
 
-.settings-header {
-    margin-bottom: 0.25rem;
-}
-
-.page-title {
-    font-size: 1.85rem;
-    font-weight: 800;
+.tab-subtitle {
+    font-size: 0.92rem;
+    color: #94a3b8;
     margin: 0;
 }
 
-.page-subtitle {
-    color: #94a3b8;
-    margin: 0.2rem 0 0 0;
-    font-size: 0.95rem;
-    line-height: 1.4;
+.section-divider {
+    border: none;
+    border-top: 1px solid #334155;
+    margin: 1.25rem 0 2rem 0;
 }
 
-.settings-content-container {
-    width: 100%;
-    max-width: 1080px; 
-}
-
-.settings-top-nav {
-    display: flex;
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 1.25rem;
-    border-bottom: 1px solid #334155;
-    padding-bottom: 1rem;
-    margin-bottom: 1.5rem;
-    width: 100%;
 }
 
-.top-nav-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.65rem 1.1rem;
-    background: transparent;
-    border: 1px solid transparent;
-    color: #94a3b8;
-    font-size: 0.95rem;
-    font-weight: 600;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    min-height: 40px;
-}
-
-.top-nav-btn:hover {
-    color: #ffffff;
-    background-color: #1e293b;
-}
-
-.top-nav-btn.is-active {
-    color: #ffffff;
-    background-color: #1e293b;
-    border-color: #60a5fa;
-    box-shadow: 0 0 10px rgba(96, 165, 250, 0.4);
-}
-
-.btn-icon {
-    font-size: 1.1rem;
-}
-
-.settings-card {
-    width: 100%;
+.entry-card {
     background-color: #1e293b;
     border: 1px solid #334155;
-    border-radius: 0.6rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
-    overflow: hidden; 
-}
-
-.settings-card-content {
-    padding: 1.5rem 2rem;
-}
-
-.card-header-row {
+    border-radius: 6px;
+    padding: 1.25rem;
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    min-height: 125px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-.card-header-row h2 {
-    font-size: 1.2rem;
-    margin: 0;
-    font-weight: 700;
-    color: #ffffff;
+.card-main {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    width: 100%;
 }
 
-.client-avatar-ico {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-    border-radius: 4px;
+.card-avatar {
+    font-size: 1.5rem;
+    flex-shrink: 0;
 }
 
-.client-avatar-ico.text-ico {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+.card-avatar.text-avatar {
     background-color: #2563eb;
     color: white;
-    font-size: 0.7rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
     font-weight: bold;
 }
 
-.card-divider {
-    border: none;
-    border-top: 1px solid #334155;
-    margin: 0 0 1.5rem 0;
-}
-
-.form-semantic-flex {
+.card-details {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    width: 100%;
+    min-width: 0;
 }
 
-.form-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1.25rem;
-    width: 100%;
-}
-
-.flex-row-align {
-    align-items: flex-start; 
-}
-
-.form-col {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.form-field.checkbox-inline {
-    flex-direction: row;
-    align-items: flex-start;
-    padding-bottom: 0.5rem;
-}
-
-.form-checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    justify-content: center;
-    padding-top: 1.5rem;
-}
-
-.form-field label {
-    font-size: 0.85rem;
+.card-title {
+    font-size: 1.05rem;
     font-weight: 600;
-    color: #cbd5e1;
-    margin: 0;
+    margin: 0 0 0.25rem 0;
+    color: #ffffff;
 }
 
-.input-hint {
-    font-size: 0.75rem;
+.card-meta {
+    font-size: 0.8rem;
     color: #64748b;
-    margin-top: 0.25rem;
-    line-height: 1.4;
-    display: block;
+    word-break: break-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
-.hint-center {
-    text-align: center;
-}
-
-.form-field input[type="text"],
-.form-field input[type="password"],
-.form-field input[type="number"],
-.form-field input[type="url"] {
-    background-color: #0f172a;
-    border: 1px solid #475569;
-    border-radius: 0.375rem;
-    padding: 0.6rem 0.75rem;
-    color: #ffffff;
-    font-size: 0.95rem;
-    outline: none;
-    transition: all 0.15s ease;
-    width: 100%;
-    min-height: 40px;
-}
-
-.form-field input:focus {
-    border-color: #60a5fa;
-    background-color: #0d121f;
-    box-shadow: 0 0 5px rgba(96, 165, 250, 0.2);
-}
-
-.toggle-control-label {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.65rem;
-    cursor: pointer;
-    user-select: none;
-}
-
-.toggle-control-label input[type="checkbox"] {
-    width: 1.1rem;
-    height: 1.1rem;
-    accent-color: #2563eb;
-    cursor: pointer;
-    flex-shrink: 0;
-    margin-top: 0.15rem;
-}
-
-.toggle-control-label span {
-    font-size: 0.9rem !important;
-    font-weight: 500 !important;
-    color: #f1f5f9;
-    line-height: 1.45;
-}
-
-.f-width-full { width: 100%; }
-
-.f-width-half { flex: 1 1 calc(50% - 0.75rem); min-width: 250px; }
-.f-width-md   { flex: 1 1 calc(25% - 1rem); min-width: 180px; }
-.f-width-60   { flex: 1 1 calc(60% - 1.25rem); min-width: 300px; }
-.f-width-40   { flex: 1 1 calc(40% - 1.25rem); min-width: 250px; }
-
-.f-width-sm { width: 110px; flex-shrink: 0; }
-.f-width-vsm { width: 85px; flex-shrink: 0; }
-
-.floating-submit-control {
-    display: flex;
-    justify-content: flex-end;
-    width: 100%;
-    margin-top: -1.25rem;
-    transform: translateX(1rem); 
-    padding-right: 1rem;
-    pointer-events: none;
-    z-index: 50;
-}
-
-.action-save-btn {
-    background-color: #2563eb;
-    color: #ffffff;
-    border: none;
-    border-radius: 99px;
-    padding: 0.7rem 1.75rem;
+.status-indicator {
+    font-size: 0.72rem;
     font-weight: 700;
-    font-size: 0.95rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 3px;
+    margin-top: 0.75rem;
+}
+
+.status-indicator.enabled {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.add-entry-card {
+    background-color: #0f172a;
+    border: 2px dashed #334155;
+    border-radius: 6px;
+    min-height: 125px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
-    min-width: 160px;
+    transition: all 0.15s ease;
 }
 
-.action-save-btn:hover:not(:disabled) {
-    background-color: #1d4ed8;
-    transform: translateY(-2px);
+.add-entry-card:hover {
+    border-color: #3b82f6;
+    background-color: rgba(30, 41, 59, 0.5);
 }
 
-.action-save-btn.is-loading {
-    background-color: #334155;
-    color: #94a3b8;
+.add-plus {
+    font-size: 2rem;
+    color: #475569;
+    font-weight: 300;
+    transition: color 0.15s ease;
 }
 
-.action-save-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+.add-entry-card:hover .add-plus {
+    color: #3b82f6;
 }
 
-@media (max-width: 1024px) {
-    .settings-sub-sidebar { display: none; }
-    .floating-submit-control { transform: none; margin-top: 1.5rem; justify-content: flex-end; padding: 0;}
-    .f-width-md { flex: 1 1 100%; min-width: 100%; } 
-}
-
-@media (max-width: 800px) {
-    .f-wrap-s { flex-direction: column; align-items: flex-start;}
-    .f-wrap-xs { flex-direction: column;}
-    .f-width-vsm { width: 100%; flex-basis: auto;}
-    .form-checkbox-group { padding-top: 0;}
-}
-
-@media (max-width: 640px) {
-    .settings-dashboard { gap: 1rem; }
-    .settings-card-content { padding: 1.25rem 1rem; }
-    .form-semantic-flex { gap: 1rem;}
-    .form-row { flex-direction: column; gap: 1rem; align-items: stretch; }
-    .settings-grid-form { grid-template-columns: 1fr; gap: 1rem;}
-    .f-width-half { flex-basis: auto; width: 100%; }
-    .f-width-60, .f-width-40 { width: 100%; flex-basis: auto; }
-    
-    .settings-top-nav { gap: 0.5rem; }
-    .top-nav-btn { flex: 1; justify-content: center; padding: 0.5rem; }
-
-    .action-save-btn { width: 100%; padding: 1rem; text-align: center;}
+.empty-state-notice {
+    color: #64748b;
+    font-size: 0.95rem;
+    padding: 2rem 0;
+    text-align: center;
 }
 </style>
