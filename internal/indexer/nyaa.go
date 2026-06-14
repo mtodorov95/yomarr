@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/mtodorov95/yomarr/internal/models"
 )
 
 type NyaaResult struct {
@@ -29,15 +31,21 @@ type nyaaRSS struct {
 
 type NyaaIndexer struct {
 	Client *http.Client
+	Cfg models.Indexer
 }
 
-func NewNyaaIndexer() *NyaaIndexer {
+func NewNyaaIndexer(cfg models.Indexer) *NyaaIndexer {
 	return &NyaaIndexer{
 		Client: &http.Client{Timeout: 10 * time.Second},
+		Cfg: cfg,
 	}
 }
 
-func (n *NyaaIndexer) Search(query string) ([]NyaaResult, error) {
+func (n *NyaaIndexer) Search(query string) ([]SearchResult, error) {
+	if !n.Cfg.EnableSearch {
+		return nil, nil
+	}
+
 	categories := []struct {
 		code string
 		lang string
@@ -55,7 +63,24 @@ func (n *NyaaIndexer) Search(query string) ([]NyaaResult, error) {
 		go func(categoryCode, langTag string) {
 			defer wg.Done()
 
-			apiURL := fmt.Sprintf("https://nyaa.si/?page=rss&q=%s&c=%s&f=0", url.QueryEscape(query), categoryCode)
+			base, err := url.Parse(n.Cfg.URL)
+			if err != nil {
+				errChan <- fmt.Errorf("invalid indexer base URL config: %w", err)
+				return
+			}
+
+			q := base.Query()
+			q.Set("page", "rss")
+			q.Set("q", query)
+			q.Set("c", categoryCode)
+			if q.Get("f") == "" {
+				q.Set("f", "0")
+			}
+			base.RawQuery = q.Encode()
+
+			// Add config parameters here later
+
+			apiURL := base.String()
 
 			resp, err := n.Client.Get(apiURL)
 			if err != nil {
@@ -92,9 +117,25 @@ func (n *NyaaIndexer) Search(query string) ([]NyaaResult, error) {
 		return nil, <-errChan
 	}
 
-	var combinedResults []NyaaResult
+	var combinedResults []SearchResult
 	for items := range resultChan {
-		combinedResults = append(combinedResults, items...)
+		for _, item := range items {
+			if item.Seeders < n.Cfg.MinimumSeeders {
+				continue
+			}
+
+			combinedResults = append(combinedResults, SearchResult{
+				Title:    item.Title,
+				Link:     item.Link,
+				Guid:     item.Guid,
+				Seeders:  item.Seeders,
+				Leechers: item.Leechers,
+				InfoHash: item.InfoHash,
+				Size:     item.Size,
+				Language: item.Language,
+				SeedTime: n.Cfg.SeedTime,
+			})
+		}
 	}
 
 	return combinedResults, nil

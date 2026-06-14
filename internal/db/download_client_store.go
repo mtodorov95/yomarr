@@ -1,10 +1,15 @@
 package db
 
-import "github.com/mtodorov95/yomarr/internal/models"
+import (
+	"database/sql"
+	"strings"
 
+	"github.com/mtodorov95/yomarr/internal/models"
+)
 
 type DownloadClientStore interface {
 	GetAll() ([]models.DownloadClient, error)
+	GetByID(id int64) (*models.DownloadClient, error)
 	Insert(dc *models.DownloadClient) error
 	Update(dc *models.DownloadClient) error
 	Delete(id int64) error
@@ -27,7 +32,29 @@ func (store *SQLiteDownloadClientStore) GetAll() ([]models.DownloadClient, error
 		}
 		list = append(list, dc)
 	}
+
+	for i := range list {
+		if list[i].Password != "" {
+			list[i].Password = strings.Repeat("*", len(list[i].Password))
+		}
+	}
+
 	return list, nil
+}
+
+func (store *SQLiteDownloadClientStore) GetByID(id int64) (*models.DownloadClient, error) {
+	var dc models.DownloadClient
+	err := DB.QueryRow("SELECT id, name, host, port, use_ssl, username, password, category FROM download_clients WHERE id = ?", id).Scan(
+		&dc.ID, &dc.Name, &dc.Host, &dc.Port, &dc.UseSSL, &dc.Username, &dc.Password, &dc.Category,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &dc, nil
 }
 
 func (store *SQLiteDownloadClientStore) Insert(dc *models.DownloadClient) error {

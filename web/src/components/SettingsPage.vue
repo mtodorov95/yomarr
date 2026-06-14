@@ -1,47 +1,146 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import SettingsModal from '../components/SettingsModal.vue'
+import { DownloadClient, Indexer } from '@/types'
+import { useToast } from '@/composables/useToast'
+import ConfirmationModal from './ConfirmationModal.vue'
 
 const route = useRoute()
-
+const toast = useToast()
 const activeTab = computed(() => (route.query.tab as string) || 'indexers')
 
-const indexers = ref([
-    { id: 1, name: 'Nyaa', protocol: 'Torrent', url: 'https://nyaa.si', enabled: true }
+const indexers = ref<Indexer[]>([
 ])
 
-const downloadClients = ref([
-    { id: 1, name: 'qBittorrent', protocol: 'Torrent', host: 'localhost', enabled: true }
+const downloadClients = ref<DownloadClient[]>([
 ])
 
 const isModalOpen = ref(false)
 const modalType = ref<'indexer' | 'download-client'>('indexer')
+
+const isConfirmModalOpen = ref(false)
+const deletionTarget = ref<{ id: number; type: 'indexer' | 'download-client' } | null>(null)
+
+const confirmModalTitle = computed(() => {
+    return deletionTarget.value?.type === 'indexer' ? 'Remove Indexer' : 'Remove Download Client'
+})
 
 function openAddModal() {
     modalType.value = activeTab.value === 'indexers' ? 'indexer' : 'download-client'
     isModalOpen.value = true
 }
 
-function onSaveConfig(payload: { type: string; preset: string; data: any }) {
-    if (payload.type === 'indexer') {
-        indexers.value.push({
-            id: Date.now(),
-            name: payload.data.name,
-            protocol: 'Torrent',
-            url: payload.data.url || 'Custom API Target',
-            enabled: true
-        })
-    } else {
-        downloadClients.value.push({
-            id: Date.now(),
-            name: payload.data.name,
-            protocol: 'Torrent',
-            host: payload.data.host || '127.0.0.1',
-            enabled: true
-        })
+async function fetchConfigurations() {
+    try {
+        const [indexerRes, clientRes] = await Promise.all([
+            fetch('/api/indexers'),
+            fetch('/api/download-clients')
+        ])
+
+        if (indexerRes.ok) indexers.value = await indexerRes.json()
+        if (clientRes.ok) downloadClients.value = await clientRes.json()
+    } catch (error) {
+        console.error('Failed to synchronize current backend state configurations:', error)
+        toast.error("Failed to load Indexer and Clien data")
     }
 }
+
+async function onSaveConfig(payload: { type: string; preset: string; data: any }) {
+    try {
+        if (payload.type === 'indexer') {
+            const newIndexer: Indexer = {
+                name: payload.data.name,
+                url: payload.data.url || 'https://nyaa.si/?page=rss',
+                api_key: payload.data.api_key || '',
+                priority: Number(payload.data.priority) || 25,
+                enable_rss: payload.data.enable_rss ?? true,
+                enable_search: payload.data.enable_search ?? true,
+                additional_parameters: payload.data.additional_parameters || '',
+                minimum_seeders: Number(payload.data.minimum_seeders) || 1,
+                seed_time: Number(payload.data.seed_time) || 0
+            }
+
+            const response = await fetch('/api/indexers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newIndexer)
+            })
+
+            if (response.ok) {
+                const savedIndexer = await response.json()
+                indexers.value.push(savedIndexer)
+                isModalOpen.value = false
+            }
+        } else {
+            const newClient: DownloadClient = {
+                name: payload.data.name,
+                host: payload.data.host || '127.0.0.1',
+                port: Number(payload.data.port) || 8080,
+                use_ssl: payload.data.use_ssl ?? false,
+                username: payload.data.username || '',
+                password: payload.data.password || '',
+                category: payload.data.category || 'yomarr'
+            }
+
+            const response = await fetch('/api/download-clients', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newClient)
+            })
+
+            if (response.ok) {
+                const savedClient = await response.json()
+                downloadClients.value.push(savedClient)
+                isModalOpen.value = false
+            }
+        }
+    } catch (error) {
+        console.error('Failed to save configuration:', error)
+        toast.error("Critical error saving profile")
+    }
+}
+
+function triggerDeleteConfirmation(id: number | undefined, type: 'indexer' | 'download-client') {
+    if (id === undefined) return
+    deletionTarget.value = { id, type }
+    isConfirmModalOpen.value = true
+}
+
+function closeConfirmModal() {
+    isConfirmModalOpen.value = false
+    deletionTarget.value = null
+}
+
+async function executeRemoval() {
+    if (!deletionTarget.value) return
+
+    const { id, type } = deletionTarget.value
+    closeConfirmModal()
+
+    const endpoint = type === 'indexer' ? `/api/indexers?id=${id}` : `/api/download-clients?id=${id}`
+
+    try {
+        const res = await fetch(endpoint, { method: 'DELETE' })
+        if (res.ok) {
+            if (type === 'indexer') {
+                indexers.value = indexers.value.filter(i => i.id !== id)
+            } else {
+                downloadClients.value = downloadClients.value.filter(c => c.id !== id)
+            }
+            toast.success(`${type === 'indexer' ? 'Indexer' : 'Download client'} entry removed`)
+        } else {
+            toast.error(`Failed to drop configuration row`)
+        }
+    } catch (e) {
+        console.error(e)
+        toast.error('Network error during deletion')
+    }
+}
+
+onMounted(() => {
+    fetchConfigurations()
+})
 </script>
 
 <template>
@@ -49,17 +148,21 @@ function onSaveConfig(payload: { type: string; preset: string; data: any }) {
         <div v-if="activeTab === 'indexers'" class="tab-content">
             <header class="tab-header">
                 <h2>Indexers</h2>
-                <p class="tab-subtitle">Configure torrent trackers and Usenet indexers for dynamic content monitoring.</p>
+                <p class="tab-subtitle">Configure torrent trackers and Usenet indexers for dynamic content monitoring.
+                </p>
             </header>
             <hr class="section-divider" />
 
             <div class="cards-grid">
                 <div v-for="indexer in indexers" :key="indexer.id" class="entry-card">
+                    <button class="delete-btn" @click.stop="triggerDeleteConfirmation(indexer.id, 'indexer')"
+                        title="Delete Entry">🗑️</button>
+
                     <div class="card-main">
                         <span class="card-avatar">🌐</span>
                         <div class="card-details">
                             <h3 class="card-title">{{ indexer.name }}</h3>
-                            <span class="card-meta">{{ indexer.protocol }} / {{ indexer.url }}</span>
+                            <span class="card-meta">{{ indexer.url }}</span>
                         </div>
                     </div>
                     <span class="status-indicator enabled">Enabled</span>
@@ -80,11 +183,14 @@ function onSaveConfig(payload: { type: string; preset: string; data: any }) {
 
             <div class="cards-grid">
                 <div v-for="client in downloadClients" :key="client.id" class="entry-card">
+                    <button class="delete-btn" @click.stop="triggerDeleteConfirmation(client.id, 'download-client')"
+                        title="Delete Entry">🗑️</button>
+
                     <div class="card-main">
                         <span class="card-avatar text-avatar">⚡</span>
                         <div class="card-details">
                             <h3 class="card-title">{{ client.name }}</h3>
-                            <span class="card-meta">{{ client.protocol }} / {{ client.host }}</span>
+                            <span class="card-meta">{{ client.host + ":" + client.port }}</span>
                         </div>
                     </div>
                     <span class="status-indicator enabled">Enabled</span>
@@ -105,12 +211,10 @@ function onSaveConfig(payload: { type: string; preset: string; data: any }) {
             <div class="empty-state-notice">This segment layout is ready for your unique local controls.</div>
         </div>
 
-        <SettingsModal 
-            :is-open="isModalOpen" 
-            :type="modalType" 
-            @close="isModalOpen = false" 
-            @save="onSaveConfig" 
-        />
+        <SettingsModal :is-open="isModalOpen" :type="modalType" @close="isModalOpen = false" @save="onSaveConfig" />
+        <ConfirmationModal :is-open="isConfirmModalOpen" :title="confirmModalTitle"
+            message="Are you sure you want to remove this configuration profile?" @close="closeConfirmModal"
+            @confirm="executeRemoval" />
     </div>
 </template>
 
@@ -147,6 +251,7 @@ function onSaveConfig(payload: { type: string; preset: string; data: any }) {
 }
 
 .entry-card {
+    position: relative;
     background-color: #1e293b;
     border: 1px solid #334155;
     border-radius: 6px;
@@ -159,11 +264,31 @@ function onSaveConfig(payload: { type: string; preset: string; data: any }) {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
+.delete-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    font-size: 0.95rem;
+    cursor: pointer;
+    opacity: 0.35;
+    transition: all 0.15s ease;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.delete-btn:hover {
+    opacity: 1;
+    background-color: rgba(239, 68, 68, 0.15);
+}
+
 .card-main {
     display: flex;
     gap: 1rem;
     align-items: flex-start;
     width: 100%;
+    padding-right: 1.5rem;
 }
 
 .card-avatar {

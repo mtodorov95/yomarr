@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/models"
@@ -61,6 +62,18 @@ func (h *DownloadClientHandler) update(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&dc); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	existing, err := h.Store.GetByID(dc.ID)
+	if err != nil {
+		http.Error(w, "Client not found", http.StatusNotFound)
+		return
+	}
+
+	expectedMask := strings.Repeat("*", len(existing.Password))
+
+	if dc.Password == expectedMask {
+		dc.Password = existing.Password
 	}
 
 	if err := h.Store.Update(&dc); err != nil {

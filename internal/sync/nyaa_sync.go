@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/download"
@@ -15,11 +14,11 @@ import (
 type NyaaSyncEngine struct {
 	ChapterStore db.ChapterStore
 	SeriesStore  db.SeriesStore
-	Indexer      *indexer.NyaaIndexer
+	Indexer      indexer.Indexer
 	Downloader   download.DownloadClient
 }
 
-func NewNyaaSyncEngine(cs db.ChapterStore, ss db.SeriesStore, idx *indexer.NyaaIndexer, dl download.DownloadClient) *NyaaSyncEngine {
+func NewNyaaSyncEngine(cs db.ChapterStore, ss db.SeriesStore, idx indexer.Indexer, dl download.DownloadClient) *NyaaSyncEngine {
 	return &NyaaSyncEngine{
 		ChapterStore: cs,
 		SeriesStore:  ss,
@@ -38,6 +37,11 @@ func getDownloadsPath() string {
 }
 
 func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
+	if e.Indexer == nil || e.Downloader == nil {
+        log.Println("[Sync] Indexer or Downloader not configured yet.")
+        return nil
+    }
+
 	series, err := e.SeriesStore.GetById(seriesID)
 	if err != nil {
 		log.Printf("Err: %v", err)
@@ -75,7 +79,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 		log.Printf("[Sync Warning] Series %s might contain legacy unmapped alternative titles.", series.Title)
 	}
 
-	var results []indexer.NyaaResult
+	var results []indexer.SearchResult
 	seenTorrents := make(map[string]bool)
 
 	for _, queryTitle := range searchQueries {
@@ -105,7 +109,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 	downloadedTorrents := make(map[string]bool)
 
 	for _, ch := range missing {
-		var bestTorrent *indexer.NyaaResult
+		var bestTorrent *indexer.SearchResult
 		maxSeeders := -1
 
 		for _, res := range results {
@@ -174,7 +178,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 			log.Printf("Found optimal release for %s Ch %g [%s] -> %s (Seeds: %d)",
 				series.Title, ch.Number, bestTorrent.Language, bestTorrent.Title, bestTorrent.Seeders)
 
-			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath, 48*time.Hour, bestTorrent.Language)
+			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath, bestTorrent.SeedTime, bestTorrent.Language)
 			if err != nil {
 				log.Printf("Failed to dispatch torrent to client: %v", err)
 				continue
