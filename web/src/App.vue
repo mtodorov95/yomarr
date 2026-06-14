@@ -90,6 +90,10 @@ onUnmounted(() => {
                         <span class="nav-icon">➕</span>
                         <span class="nav-text">Add New</span>
                     </RouterLink>
+                    <RouterLink to="/settings" class="nav-item" active-class="active-nav">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-text">Settings</span>
+                    </RouterLink>
                 </nav>
             </div>
 

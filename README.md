@@ -22,3 +22,9 @@
 
 ## Status
 Pre-alpha. Currently in the design and initialization phase.
+
+ALTER TABLE indexers ADD COLUMN enable_rss INTEGER DEFAULT 1;
+ALTER TABLE indexers ADD COLUMN enable_search INTEGER DEFAULT 1;
+ALTER TABLE indexers ADD COLUMN additional_parameters TEXT;
+ALTER TABLE indexers ADD COLUMN minimum_seeders INTEGER DEFAULT 1;
+ALTER TABLE indexers ADD COLUMN seed_time INTEGER DEFAULT 0;

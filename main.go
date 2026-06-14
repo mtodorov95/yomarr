@@ -92,6 +92,9 @@ func main() {
 	indexerHandler := &api.IndexerHandler{Store: &db.SQLiteIndexerStore{}}
 	mux.HandleFunc("/api/indexers", indexerHandler.HandleIndexers)
 
+	downloadClientHandler := &api.DownloadClientHandler{Store: &db.SQLiteDownloadClientStore{}}
+	mux.HandleFunc("/api/download-clients", downloadClientHandler.HandleDownloadClients)
+
 	searchHandler := api.NewSearchHandler(nyaaEngine)
 	mux.HandleFunc("/api/series/search-missing", searchHandler.SearchMissing)
 

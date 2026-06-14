@@ -58,3 +58,28 @@ export interface SystemStats {
   missing_chapters: number;
   size_on_disk_bytes: number;
 }
+
+export interface Indexer {
+    id?: number
+    name: string
+    url: string
+    api_key?: string
+    priority: number
+    enable_rss: boolean
+    enable_search: boolean
+    additional_parameters: string
+    minimum_seeders: number
+    seed_time: number
+}
+
+export interface DownloadClient {
+    id?: number
+    name: string
+    host: string
+    port: number
+    use_ssl: boolean
+    username?: string
+    password?: string
+    category: string
+}
+

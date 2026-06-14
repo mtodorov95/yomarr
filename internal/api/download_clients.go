@@ -9,11 +9,12 @@ import (
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
-type IndexerHandler struct {
-	Store db.IndexerStore
+type DownloadClientHandler struct {
+	Store db.DownloadClientStore
 }
 
-func (h *IndexerHandler) HandleIndexers(w http.ResponseWriter, r *http.Request) {
+func (h *DownloadClientHandler) HandleDownloadClients(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	switch r.Method {
 	case http.MethodGet:
 		h.getAll(w)
@@ -28,7 +29,7 @@ func (h *IndexerHandler) HandleIndexers(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (h *IndexerHandler) getAll(w http.ResponseWriter) {
+func (h *DownloadClientHandler) getAll(w http.ResponseWriter) {
 	list, err := h.Store.GetAll()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -38,38 +39,40 @@ func (h *IndexerHandler) getAll(w http.ResponseWriter) {
 	json.NewEncoder(w).Encode(list)
 }
 
-func (h *IndexerHandler) create(w http.ResponseWriter, r *http.Request) {
-	var i models.Indexer
-	if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
+func (h *DownloadClientHandler) create(w http.ResponseWriter, r *http.Request) {
+	var dc models.DownloadClient
+	if err := json.NewDecoder(r.Body).Decode(&dc); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := h.Store.Insert(&i); err != nil {
+
+	if err := h.Store.Insert(&dc); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(i)
+	json.NewEncoder(w).Encode(dc)
 }
 
-func (h *IndexerHandler) update(w http.ResponseWriter, r *http.Request) {
-	var i models.Indexer
-	if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
+func (h *DownloadClientHandler) update(w http.ResponseWriter, r *http.Request) {
+	var dc models.DownloadClient
+	if err := json.NewDecoder(r.Body).Decode(&dc); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := h.Store.Update(&i); err != nil {
+	if err := h.Store.Update(&dc); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(i)
+	json.NewEncoder(w).Encode(dc)
 }
 
-func (h *IndexerHandler) delete(w http.ResponseWriter, r *http.Request) {
+func (h *DownloadClientHandler) delete(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	if idStr == "" {
 		http.Error(w, "Missing 'id' parameter", http.StatusBadRequest)

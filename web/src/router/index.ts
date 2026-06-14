@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from '../components/Dashboard.vue'
 import SearchSeries from '../components/SearchSeries.vue'
 import SeriesDetail from '@/components/SeriesDetail.vue'
+import SettingsPage from '@/components/SettingsPage.vue'
 
 const routes = [
   {
@@ -19,6 +20,11 @@ const routes = [
     path: '/add',
     name: 'search',
     component: SearchSeries
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: SettingsPage
   }
 ]
 
