@@ -43,4 +43,24 @@ To keep expectations transparent for early users, here is exactly what Yomarr ha
 
 ## 📦 Getting Started
 
-*(Placeholder: Add your quick-start docker execution block or docker-compose example configuration file profiles here)*
+The easiest way to host Yomarr is using Docker Compose. 
+
+### 1. Prerequisite Setup
+Ensure the directories you intend to mount exist on your host system and have correct permissions. Yomarr runs as a non-root user (`1000:1000`) by default to maintain strict host security guidelines.
+
+### 2. Docker Compose Configuration
+Create a `docker-compose.yml` file in your desired deployment directory and use the official image structure below:
+
+```yaml
+services:
+  yomarr:
+    image: mariotodorov95/yomarr:latest
+    container_name: yomarr
+    user: "1000:1000"
+    ports:
+      - "9191:9191"
+    volumes:
+      - ./data:/data
+      - /path/to/your/manga/library:/Manga
+      - /path/to/your/torrent/downloads:/downloads
+    restart: unless-stopped
