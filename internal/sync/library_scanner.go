@@ -97,15 +97,17 @@ func (ls *LibraryScanner) ScanLibrary() error {
 			continue
 		}
 
-		dirNameLower := strings.ToLower(dir.Name())
-		var matchedSeries *models.Series
+		currentDirPath := filepath.Clean(filepath.Join(libraryRoot, dir.Name()))
+        var matchedSeries *models.Series
 
-		for i := range allSeries {
-			if strings.ToLower(allSeries[i].Title) == dirNameLower {
-				matchedSeries = &allSeries[i]
-				break
-			}
-		}
+        for i := range allSeries {
+            dbPath := filepath.Clean(allSeries[i].Path)
+            
+            if dbPath == currentDirPath {
+                matchedSeries = &allSeries[i]
+                break
+            }
+        }
 
 		if matchedSeries == nil {
 			log.Printf("[Scanner] Found unrecognized folder: %s. Attempting auto-creation...", dir.Name())
