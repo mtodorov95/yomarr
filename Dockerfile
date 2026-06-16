@@ -12,7 +12,10 @@ WORKDIR /app
 COPY go.mod ./
 COPY . .
 COPY --from=fe-builder /web/dist ./web/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -o yomarr main.go
+ARG VERSION=v0.0.0-dev
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.AppVersion=${VERSION}" \
+    -o yomarr main.go
 
 # Final
 FROM alpine:latest

@@ -6,6 +6,7 @@ import { useToast } from './composables/useToast'
 import { useRoute } from 'vue-router'
 
 const status = ref('loading...')
+const version = ref('')
 const toast = useToast()
 const route = useRoute()
 const checkingHealth = ref(false)
@@ -19,6 +20,7 @@ async function checkHealth() {
         if (!res.ok) throw new Error('fail')
         const data = await res.json()
         status.value = data.status
+        version.value = data.version
     } catch (e) {
         status.value = 'offline'
         toast.error("Backend offline")
@@ -110,21 +112,26 @@ onUnmounted(() => {
 
             <div class="sidebar-footer">
                 <div class="system-status">
-                    <span class="status-indicator-dot" :class="{ 'is-ok': status === 'ok', 'is-error': status !== 'ok' }"></span>
-                    <span class="status-label">System Status: <strong>{{ status }}</strong></span>
-                    
-                    <button 
-                        @click="checkHealth" 
-                        class="health-refresh-btn" 
-                        :class="{ 'is-spinning': checkingHealth }"
-                        :disabled="checkingHealth"
-                        title="Force Health Validation Check"
-                        aria-label="Refresh status"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="refresh-svg-icon">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                        </svg>
-                    </button>
+                    <div class="status-meta-row">
+                        <span class="status-indicator-dot" :class="{ 'is-ok': status === 'ok', 'is-error': status !== 'ok' }"></span>
+                        <span class="status-label">Status: <strong>{{ status }}</strong></span>
+                        
+                        <button 
+                            @click="checkHealth" 
+                            class="health-refresh-btn" 
+                            :class="{ 'is-spinning': checkingHealth }"
+                            :disabled="checkingHealth"
+                            title="Force Health Validation Check"
+                            aria-label="Refresh status"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="refresh-svg-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div v-if="version" class="app-version-tag">
+                        Yomarr {{ version }}
+                    </div>
                 </div>
             </div>
         </aside>
@@ -308,10 +315,25 @@ onUnmounted(() => {
 
 .system-status {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
     font-size: 0.8rem;
     color: #94a3b8;
+}
+
+.status-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.app-version-tag {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 500;
+    letter-spacing: 0.02em;
 }
 
 .status-indicator-dot {

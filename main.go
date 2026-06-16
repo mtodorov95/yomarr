@@ -19,6 +19,8 @@ import (
 //go:embed all:web/dist
 var webAssets embed.FS
 
+var AppVersion = "v0.0.0-dev"
+
 func main() {
 	// Env
 	config.LoadEnv()
@@ -73,7 +75,8 @@ func main() {
 	searchEngine.StartBackgroundSearcher(24 * time.Hour)
 
 	// API routes
-	mux.HandleFunc("/api/health", api.HealthHandler)
+	healthHandler := api.NewHealthHandler(AppVersion)
+	mux.HandleFunc("/api/health", healthHandler.HandleHealth)
 
 	seriesHandler := &api.SeriesHandler{
 		Store:      seriesStore,
