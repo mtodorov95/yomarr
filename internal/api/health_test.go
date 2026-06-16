@@ -8,22 +8,28 @@ import (
 )
 
 func TestHealthHandler(t *testing.T) {
-	req := httptest.NewRequest("GET", "/health", nil)
-	rr := httptest.NewRecorder()
+    req := httptest.NewRequest("GET", "/health", nil)
+    rr := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(HealthHandler)
-	handler.ServeHTTP(rr, req)
+    healthHandler := NewHealthHandler("v1.0.0")
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rr.Code)
-	}
+    handler := http.HandlerFunc(healthHandler.HandleHealth)
+    handler.ServeHTTP(rr, req)
 
-	var resp HealthResponse
-	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-		t.Fatalf("failed to decode body: %v", err)
-	}
+    if rr.Code != http.StatusOK {
+        t.Errorf("expected status 200, got %d", rr.Code)
+    }
 
-	if resp.Status != "ok" {
-		t.Errorf("expected status 'ok', got '%s'", resp.Status)
-	}
+    var resp HealthResponse
+    if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+        t.Fatalf("failed to decode body: %v", err)
+    }
+
+    if resp.Status != "ok" {
+        t.Errorf("expected status 'ok', got '%s'", resp.Status)
+    }
+
+    if resp.Version != "v1.0.0" {
+        t.Errorf("expected version 'v1.0.0', got '%s'", resp.Version)
+    }
 }
