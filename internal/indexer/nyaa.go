@@ -140,3 +140,99 @@ func (n *NyaaIndexer) Search(query string) ([]SearchResult, error) {
 
 	return combinedResults, nil
 }
+
+func (n *NyaaIndexer) FetchLatestRSS() ([]SearchResult, error) {
+	if !n.Cfg.EnableRSS {
+		return nil, nil
+	}
+
+	categories := []struct {
+		code string
+		lang string
+	}{
+		{code: "3_1", lang: "en"},
+		{code: "3_3", lang: "raw"},
+	}
+
+	var wg sync.WaitGroup
+	resultChan := make(chan []NyaaResult, len(categories))
+	errChan := make(chan error, len(categories))
+
+	for _, cat := range categories {
+		wg.Add(1)
+		go func(categoryCode, langTag string) {
+			defer wg.Done()
+
+			base, err := url.Parse(n.Cfg.URL)
+			if err != nil {
+				errChan <- fmt.Errorf("invalid indexer base URL config for RSS: %w", err)
+				return
+			}
+
+			q := base.Query()
+			q.Set("page", "rss")
+			q.Set("c", categoryCode)
+			if q.Get("f") == "" {
+				q.Set("f", "0")
+			}
+			base.RawQuery = q.Encode()
+
+			apiURL := base.String()
+
+			resp, err := n.Client.Get(apiURL)
+			if err != nil {
+				errChan <- err
+				return 
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				errChan <- fmt.Errorf("nyaa rss error code: %d", resp.StatusCode)
+				return
+			}
+
+			var rss nyaaRSS
+			if err := xml.NewDecoder(resp.Body).Decode(&rss); err != nil {
+				errChan <- err
+				return 
+			}
+
+			for i := range rss.Items {
+				rss.Items[i].Language = langTag
+			}
+
+			resultChan <- rss.Items
+		}(cat.code, cat.lang)
+	}
+
+	wg.Wait()
+	close(resultChan)
+	close(errChan)
+
+	if len(errChan) > 0 {
+		return nil, <-errChan
+	}
+
+	var combinedResults []SearchResult
+	for items := range resultChan {
+		for _, item := range items {
+			if item.Seeders < n.Cfg.MinimumSeeders {
+				continue
+			}
+
+			combinedResults = append(combinedResults, SearchResult{
+				Title:    item.Title,
+				Link:     item.Link,
+				Guid:     item.Guid,
+				Seeders:  item.Seeders,
+				Leechers: item.Leechers,
+				InfoHash: item.InfoHash,
+				Size:     item.Size,
+				Language: item.Language,
+				SeedTime: n.Cfg.SeedTime,
+			})
+		}
+	}
+
+	return combinedResults, nil
+}

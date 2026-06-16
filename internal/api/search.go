@@ -24,11 +24,11 @@ type ChapterGroup struct {
 }
 
 type SearchHandler struct {
-	NyaaEngine *sync.NyaaSyncEngine
+	SearchEngine *sync.SearchEngine
 }
 
-func NewSearchHandler(e *sync.NyaaSyncEngine) *SearchHandler {
-	return &SearchHandler{NyaaEngine: e}
+func NewSearchHandler(e *sync.SearchEngine) *SearchHandler {
+	return &SearchHandler{SearchEngine: e}
 }
 
 func (h *SearchHandler) SearchMissing(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +50,7 @@ func (h *SearchHandler) SearchMissing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		_ = h.NyaaEngine.FindMissingChapters(seriesID)
+		_ = h.SearchEngine.FindMissingChapters(seriesID)
 	}()
 
 	w.WriteHeader(http.StatusAccepted)

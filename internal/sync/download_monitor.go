@@ -32,7 +32,7 @@ func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, dl download.Downl
 	}
 }
 
-func torrentMatchesSeries(torrentNameLower string, series models.Series) bool {
+func TorrentMatchesSeries(torrentNameLower string, series models.Series) bool {
 	normalize := func(s string) string {
 		replacer := strings.NewReplacer(
 			" ", "", "-", "", "_", "", ".", "",
@@ -231,7 +231,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 
 		if !ok || isMultiVolumePack || isBatchText {
 			for _, series := range allSeries {
-				if torrentMatchesSeries(torrentNameLower, series) {
+				if TorrentMatchesSeries(torrentNameLower, series) {
 
 					if isMultiVolumePack {
 						hasMatchingVolChapter := false
@@ -297,7 +297,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 				continue
 			}
 
-			if !torrentMatchesSeries(torrentNameLower, series) {
+			if !TorrentMatchesSeries(torrentNameLower, series) {
 				continue
 			}
 

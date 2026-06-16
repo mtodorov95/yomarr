@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/download"
@@ -11,15 +12,15 @@ import (
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
-type NyaaSyncEngine struct {
+type SearchEngine struct {
 	ChapterStore db.ChapterStore
 	SeriesStore  db.SeriesStore
 	Indexer      indexer.Indexer
 	Downloader   download.DownloadClient
 }
 
-func NewNyaaSyncEngine(cs db.ChapterStore, ss db.SeriesStore, idx indexer.Indexer, dl download.DownloadClient) *NyaaSyncEngine {
-	return &NyaaSyncEngine{
+func NewSearchEngine(cs db.ChapterStore, ss db.SeriesStore, idx indexer.Indexer, dl download.DownloadClient) *SearchEngine {
+	return &SearchEngine{
 		ChapterStore: cs,
 		SeriesStore:  ss,
 		Indexer:      idx,
@@ -36,7 +37,32 @@ func getDownloadsPath() string {
 	return downloadRoot
 }
 
-func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
+func (e *SearchEngine) StartBackgroundSearcher(interval time.Duration) {
+    ticker := time.NewTicker(interval)
+    go func() {
+        log.Printf("[Automation] Background backlog searcher engine starting. Interval: %v", interval)
+        for range ticker.C {
+            monitoredSeries, err := e.SeriesStore.GetAllMonitored()
+            if err != nil {
+                log.Printf("[Automation] Failed to retrieve monitored series: %v", err)
+                continue
+            }
+
+            for _, series := range monitoredSeries {
+                log.Printf("[Automation] Triggering missing chapter check for: %s", series.Title)
+                
+                if err := e.FindMissingChapters(series.ID); err != nil {
+                    log.Printf("[Automation] Search run failed for %s: %v", series.Title, err)
+                }
+
+                time.Sleep(15 * time.Second)
+            }
+            log.Println("[Automation] Global backlog search cycle complete.")
+        }
+    }()
+}
+
+func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 	if e.Indexer == nil || e.Downloader == nil {
         log.Println("[Sync] Indexer or Downloader not configured yet.")
         return nil
@@ -46,6 +72,11 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 	if err != nil {
 		log.Printf("Err: %v", err)
 		return err
+	}
+
+	if series.Status == models.SeriesUnmonitored {
+		log.Printf("[Sync] Skipping search. Series '%s' is explicitly Unmonitored.", series.Title)
+        return nil
 	}
 
 	missing, err := e.ChapterStore.GetMissingBySeriesID(seriesID)
@@ -83,7 +114,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 	seenTorrents := make(map[string]bool)
 
 	for _, queryTitle := range searchQueries {
-		log.Printf("Executing targeted search on Nyaa for: %s", queryTitle)
+		log.Printf("Executing targeted search for: %s", queryTitle)
 		variantResults, err := e.Indexer.Search(queryTitle)
 		if err != nil {
 			log.Printf("Search error for variant '%s': %v", queryTitle, err)
@@ -102,7 +133,7 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 	}
 
 	if len(results) == 0 {
-		log.Printf("Total search blackout on Nyaa across relevant titles for: %s", series.Title)
+		log.Printf("Total search blackout across all known titles for: %s", series.Title)
 		return nil
 	}
 
@@ -113,47 +144,12 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 		maxSeeders := -1
 
 		for _, res := range results {
-			if res.Language != ch.Language {
+
+			if !IsChapterMatch(res, ch) {
 				continue
 			}
 
-			parsed, ok := indexer.ParseTorrentTitle(res.Title)
-			isMatch := false
-			titleLower := strings.ToLower(res.Title)
-
-			if !ok {
-				if !strings.Contains(titleLower, "ln") &&
-					!strings.Contains(titleLower, "novel") &&
-					!strings.Contains(titleLower, "wn") &&
-					!strings.Contains(titleLower, "epub") &&
-					!strings.Contains(titleLower, "pdf") {
-					if strings.Contains(titleLower, "complete") || strings.Contains(titleLower, "digital") {
-						isMatch = true
-					}
-				}
-			} else {
-				switch parsed.Type {
-				case indexer.TypeSingle:
-					if parsed.StartNum == ch.Number {
-						isMatch = true
-					}
-
-				case indexer.TypeRange:
-					if ch.Number >= parsed.StartNum && ch.Number <= parsed.EndNum {
-						isMatch = true
-					}
-
-				case indexer.TypeVolume:
-					if ch.Volume != nil {
-						chVol := float64(*ch.Volume)
-						if chVol >= parsed.StartNum && chVol <= parsed.EndNum {
-							isMatch = true
-						}
-					}
-				}
-			}
-
-			if isMatch && res.Seeders > maxSeeders {
+			if res.Seeders > maxSeeders {
 				maxSeeders = res.Seeders
 				tmp := res
 				bestTorrent = &tmp
@@ -190,10 +186,49 @@ func (e *NyaaSyncEngine) FindMissingChapters(seriesID int64) error {
 				_ = e.ChapterStore.Update(ch)
 			}
 		} else {
-			log.Printf("No available candidate on Nyaa matches %s Ch %g for language [%s]",
+			log.Printf("No available candidate matches %s Ch %g for language [%s]",
 				series.Title, ch.Number, ch.Language)
 		}
 	}
 
 	return nil
+}
+
+func IsChapterMatch(res indexer.SearchResult, ch *models.Chapters) bool {
+	if res.Language != ch.Language {
+		return false
+	}
+
+	parsed, ok := indexer.ParseTorrentTitle(res.Title)
+	titleLower := strings.ToLower(res.Title)
+
+	if !ok {
+		if strings.Contains(titleLower, "ln") ||
+			strings.Contains(titleLower, "novel") ||
+			strings.Contains(titleLower, "wn") ||
+			strings.Contains(titleLower, "epub") ||
+			strings.Contains(titleLower, "pdf") {
+			return false
+		}
+		if strings.Contains(titleLower, "complete") || strings.Contains(titleLower, "digital") {
+			return true
+		}
+		return false
+	}
+
+	switch parsed.Type {
+	case indexer.TypeSingle:
+		return parsed.StartNum == ch.Number
+
+	case indexer.TypeRange:
+		return ch.Number >= parsed.StartNum && ch.Number <= parsed.EndNum
+
+	case indexer.TypeVolume:
+		if ch.Volume != nil {
+			chVol := float64(*ch.Volume)
+			return chVol >= parsed.StartNum && chVol <= parsed.EndNum
+		}
+	}
+
+	return false
 }

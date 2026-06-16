@@ -51,16 +51,26 @@ func main() {
 	// Sync
 	manager := sync.NewDynamicManager(indexerStore, clientStore)
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
-	nyaaEngine := sync.NewNyaaSyncEngine(chapterStore, seriesStore, manager, manager)
+	searchEngine := sync.NewSearchEngine(chapterStore, seriesStore, manager, manager)
+	rssEngine := sync.NewRssEngine(chapterStore, seriesStore, manager)
 	monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, manager)
-	monitor.Start()
 
 	scanner := sync.NewLibraryScanner(chapterStore, seriesStore, aggregator, syncEngine)
 	if err := scanner.ScanLibrary(); err != nil {
 		log.Printf("[Scanner] Initial library boot scan failed: %v", err)
 	}
+
+	// Scheduled tasks
+	// Download client monitor
+	monitor.Start()
+	// Local scan
 	scanner.StartBackgroundScan(6 * time.Hour)
+	// Metadata refresh
 	scanner.StartBackgroundMetadataRefresher(12 * time.Hour)
+	// RSS feed
+	rssEngine.StartBackgroundRssCheck(15 * time.Minute)
+	// Missing chapter search
+	searchEngine.StartBackgroundSearcher(24 * time.Hour)
 
 	// API routes
 	mux.HandleFunc("/api/health", api.HealthHandler)
@@ -83,7 +93,7 @@ func main() {
 	downloadClientHandler := &api.DownloadClientHandler{Store: &db.SQLiteDownloadClientStore{}}
 	mux.HandleFunc("/api/download-clients", downloadClientHandler.HandleDownloadClients)
 
-	searchHandler := api.NewSearchHandler(nyaaEngine)
+	searchHandler := api.NewSearchHandler(searchEngine)
 	mux.HandleFunc("/api/series/search-missing", searchHandler.SearchMissing)
 
 	libraryHandler := api.NewLibraryHandler(scanner)

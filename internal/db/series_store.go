@@ -17,6 +17,7 @@ func ToPtr(s string) *string {
 type SeriesStore interface {
 	GetAll() ([]models.Series, error)
 	GetById(id int64) (*models.Series, error)
+	GetAllMonitored() ([]models.Series, error)
 	Insert(s *models.Series) error
 	Update(s *models.Series) error
 	Delete(id int64) error
@@ -110,6 +111,36 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 	_ = json.Unmarshal([]byte(genresStr), &s.Genres)
 
 	return &s, nil
+}
+
+func (store *SQLiteSeriesStore) GetAllMonitored() ([]models.Series, error) {
+	query := `
+		SELECT id, title, alt_titles, status 
+        FROM series
+        WHERE status != ?
+    `
+
+	rows, err := DB.Query(query, models.SeriesUnmonitored)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var list []models.Series
+	for rows.Next() {
+		var s models.Series
+		var altStr string
+
+		err := rows.Scan(&s.ID, &s.Title, &altStr, &s.Status)
+		if err != nil {
+			return nil, err
+		}
+
+		_ = json.Unmarshal([]byte(altStr), &s.AltTitles)
+		list = append(list, s)
+	}
+	return list, nil
 }
 
 func (store *SQLiteSeriesStore) Insert(s *models.Series) error {

@@ -15,6 +15,7 @@ type MockStore struct {
 }
 
 func (m *MockStore) GetAll() ([]models.Series, error) { return m.series, nil }
+func (m *MockStore) GetAllMonitored() ([]models.Series, error) { return m.series, nil }
 func (m *MockStore) GetById(id int64) (*models.Series, error) {
 	for _, s := range m.series {
 		if s.ID == id {

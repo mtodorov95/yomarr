@@ -14,4 +14,5 @@ type SearchResult struct {
 
 type Indexer interface {
 	Search(query string) ([]SearchResult, error)
+	FetchLatestRSS() ([]SearchResult, error)
 }

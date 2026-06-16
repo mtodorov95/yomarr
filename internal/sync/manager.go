@@ -98,3 +98,35 @@ func (m *DynamicManager) Search(query string) ([]indexer.SearchResult, error) {
 
 	return aggregatedResults, nil
 }
+
+func (m *DynamicManager) FetchLatestRSS() ([]indexer.SearchResult, error) {
+    indexers, err := m.IndexerStore.GetAll()
+    if err != nil || len(indexers) == 0 {
+        return nil, fmt.Errorf("no indexers configured yet: %v", err)
+    }
+
+    var aggregatedResults []indexer.SearchResult
+
+    for _, idxConfig := range indexers {
+        if !idxConfig.EnableRSS {
+            continue
+        }
+
+        var activeIndexer indexer.Indexer
+        if idxConfig.Name == "Nyaa" || idxConfig.Name == "nyaa" {
+            activeIndexer = indexer.NewNyaaIndexer(idxConfig) 
+        }
+
+        if activeIndexer == nil {
+            continue
+        }
+
+        results, err := activeIndexer.FetchLatestRSS() 
+        if err != nil {
+            continue 
+        }
+        aggregatedResults = append(aggregatedResults, results...)
+    }
+
+    return aggregatedResults, nil
+}
