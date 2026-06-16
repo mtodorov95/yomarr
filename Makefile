@@ -1,21 +1,11 @@
-APP_NAME=yomarr
-PORT=9191
-
 build:
-	docker build -t $(APP_NAME) .
+	docker compose build
 
 run:
-	docker run -d -p $(PORT):$(PORT) --name $(APP_NAME) \
-		--user $(shell id -u):$(shell id -g) \
-		-v $(PWD)/temp:/app/temp \
-		-v /home/mario/Hestia/Manga:/Manga \
-		-v /home/mario/Hestia/Downloads:/downloads \
-		--env-file .env.prod \
-		$(APP_NAME)
+	docker compose up -d
 
 stop:
-	docker stop $(APP_NAME) || true
-	docker rm $(APP_NAME) || true
+	docker compose down
 
 rebuild: stop build run
 
