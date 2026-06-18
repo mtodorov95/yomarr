@@ -72,7 +72,7 @@ func main() {
 	// RSS feed
 	rssEngine.StartBackgroundRssCheck(15 * time.Minute)
 	// Missing chapter search
-	searchEngine.StartBackgroundSearcher(24 * time.Hour)
+	searchEngine.StartBackgroundSearcher(72 * time.Hour)
 
 	// API routes
 	healthHandler := api.NewHealthHandler(AppVersion)
