@@ -38,35 +38,35 @@ func getDownloadsPath() string {
 }
 
 func (e *SearchEngine) StartBackgroundSearcher(interval time.Duration) {
-    ticker := time.NewTicker(interval)
-    go func() {
-        log.Printf("[Automation] Background backlog searcher engine starting. Interval: %v", interval)
-        for range ticker.C {
-            monitoredSeries, err := e.SeriesStore.GetAllMonitored()
-            if err != nil {
-                log.Printf("[Automation] Failed to retrieve monitored series: %v", err)
-                continue
-            }
+	ticker := time.NewTicker(interval)
+	go func() {
+		log.Printf("[Automation] Background backlog searcher engine starting. Interval: %v", interval)
+		for range ticker.C {
+			monitoredSeries, err := e.SeriesStore.GetAllMonitored()
+			if err != nil {
+				log.Printf("[Automation] Failed to retrieve monitored series: %v", err)
+				continue
+			}
 
-            for _, series := range monitoredSeries {
-                log.Printf("[Automation] Triggering missing chapter check for: %s", series.Title)
-                
-                if err := e.FindMissingChapters(series.ID); err != nil {
-                    log.Printf("[Automation] Search run failed for %s: %v", series.Title, err)
-                }
+			for _, series := range monitoredSeries {
+				log.Printf("[Automation] Triggering missing chapter check for: %s", series.Title)
 
-                time.Sleep(15 * time.Second)
-            }
-            log.Println("[Automation] Global backlog search cycle complete.")
-        }
-    }()
+				if err := e.FindMissingChapters(series.ID); err != nil {
+					log.Printf("[Automation] Search run failed for %s: %v", series.Title, err)
+				}
+
+				time.Sleep(15 * time.Second)
+			}
+			log.Println("[Automation] Global backlog search cycle complete.")
+		}
+	}()
 }
 
 func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 	if e.Indexer == nil || e.Downloader == nil {
-        log.Println("[Sync] Indexer or Downloader not configured yet.")
-        return nil
-    }
+		log.Println("[Sync] Indexer or Downloader not configured yet.")
+		return nil
+	}
 
 	series, err := e.SeriesStore.GetById(seriesID)
 	if err != nil {
@@ -76,7 +76,7 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 
 	if series.Status == models.SeriesUnmonitored {
 		log.Printf("[Sync] Skipping search. Series '%s' is explicitly Unmonitored.", series.Title)
-        return nil
+		return nil
 	}
 
 	missing, err := e.ChapterStore.GetMissingBySeriesID(seriesID)
@@ -199,17 +199,19 @@ func IsChapterMatch(res indexer.SearchResult, ch *models.Chapters) bool {
 		return false
 	}
 
-	parsed, ok := indexer.ParseTorrentTitle(res.Title)
 	titleLower := strings.ToLower(res.Title)
 
+	if strings.Contains(titleLower, "ln") ||
+		strings.Contains(titleLower, "novel") ||
+		strings.Contains(titleLower, "wn") ||
+		strings.Contains(titleLower, "epub") ||
+		strings.Contains(titleLower, "pdf") {
+		return false
+	}
+
+	parsed, ok := indexer.ParseTorrentTitle(res.Title)
+
 	if !ok {
-		if strings.Contains(titleLower, "ln") ||
-			strings.Contains(titleLower, "novel") ||
-			strings.Contains(titleLower, "wn") ||
-			strings.Contains(titleLower, "epub") ||
-			strings.Contains(titleLower, "pdf") {
-			return false
-		}
 		if strings.Contains(titleLower, "complete") || strings.Contains(titleLower, "digital") {
 			return true
 		}
