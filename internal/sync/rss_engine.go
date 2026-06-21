@@ -2,7 +2,6 @@ package sync
 
 import (
 	"log"
-	"strings"
 	"time"
 
 	"github.com/mtodorov95/yomarr/internal/db"
@@ -40,24 +39,25 @@ func (e *RssEngine) StartBackgroundRssCheck(interval time.Duration) {
 			}
 
 			for _, release := range latestReleases {
-				releaseTitleLower := strings.ToLower(release.Title)
-
 				for _, series := range monitoredSeries {
-
-					if !TorrentMatchesSeries(releaseTitleLower, series) {
+					missingChapters, _ := e.ChapterStore.GetMissingBySeriesID(series.ID)
+					if len(missingChapters) == 0 {
 						continue
 					}
 
-					missingChapters, _ := e.ChapterStore.GetMissingBySeriesID(series.ID)
-
 					for _, ch := range missingChapters {
-						if ch.Language != release.Language {
-							continue
-						}
-						if IsChapterMatch(release, ch) {
+						parsedRelease, matched := IsChapterMatch(release, ch, &series)
+						if matched {
 							log.Printf("[RSS] Found : %s Ch %g [%s]", series.Title, ch.Number, ch.Language)
 
-							err := e.Manager.AddTorrentFromURL(release.Link, getDownloadsPath(), release.SeedTime, release.Language)
+							_, err := e.Manager.AddTorrentFromURL(
+								release.Link,
+								getDownloadsPath(),
+								release.SeedTime,
+								release.Language,
+								series.ID,
+								parsedRelease,
+							)
 							if err != nil {
 								log.Printf("[RSS] Failed to pass torrent to downloader client: %v", err)
 								continue

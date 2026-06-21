@@ -87,6 +87,7 @@ func createTables() {
 			release_type TEXT NOT NULL,
 			start_num REAL NOT NULL,
 			end_num REAL NOT NULL,
+			language TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'downloading',
 			error_message TEXT DEFAULT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP

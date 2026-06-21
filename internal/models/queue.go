@@ -26,6 +26,7 @@ type QueueItem struct {
 	ReleaseType  ReleaseType `json:"release_type"`
 	StartNum     float64     `json:"start_num"`
 	EndNum       float64     `json:"end_num"`
+	Language     string      `json:"language"`
 	Status       QueueStatus `json:"status"`
 	ErrorMessage *string     `json:"error_message,omitempty"`
 	CreatedAt    time.Time   `json:"created_at"`

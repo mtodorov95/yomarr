@@ -205,12 +205,12 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 
 			start := parsed.StartNum
 			end := parsed.StartNum
-			if parsed.Type == indexer.TypeRange {
+			if parsed.Type == models.TypeRange {
 				end = parsed.EndNum
 			}
 			currentPath := filepath.Join(subFolderPath, fileName)
 
-			if parsed.Type == indexer.TypeVolume {
+			if parsed.Type == models.TypeVolume {
 				for volNum := start; volNum <= end; volNum++ {
 					// Update existing rows
 					for i := range dbChapters {
@@ -421,9 +421,9 @@ func (ls *LibraryScanner) extractChaptersFromArchive(archivePath string, fallbac
 			targetVolume = *fileSpecificVol
 		}
 
-		if parsed.Type == indexer.TypeSingle || parsed.Type == indexer.TypeRange {
+		if parsed.Type == models.TypeSingle || parsed.Type == models.TypeRange {
 			end := parsed.StartNum
-			if parsed.Type == indexer.TypeRange {
+			if parsed.Type == models.TypeRange {
 				end = parsed.EndNum
 			}
 

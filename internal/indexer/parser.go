@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/mtodorov95/yomarr/internal/models"
 )
 
 var (
@@ -27,16 +29,8 @@ var (
 	VolJaRegex = regexp.MustCompile(`(?i)第\s*(\d+)\s*(?:-\s*(\d+)\s*)?巻`)
 )
 
-type ReleaseType string
-
-const (
-	TypeSingle ReleaseType = "single"
-	TypeRange  ReleaseType = "range"
-	TypeVolume ReleaseType = "volume"
-)
-
 type ParsedRelease struct {
-	Type     ReleaseType
+	Type     models.ReleaseType
 	StartNum float64
 	EndNum   float64
 }
@@ -52,18 +46,18 @@ func ParseTorrentTitle(title string) (ParsedRelease, bool) {
 		start, _ := strconv.ParseFloat(jaVolMatches[1], 64)
 		if jaVolMatches[2] != "" {
 			end, _ := strconv.ParseFloat(jaVolMatches[2], 64)
-			return ParsedRelease{Type: TypeVolume, StartNum: start, EndNum: end}, true
+			return ParsedRelease{Type: models.TypeVolume, StartNum: start, EndNum: end}, true
 		}
-		return ParsedRelease{Type: TypeVolume, StartNum: start, EndNum: start}, true
+		return ParsedRelease{Type: models.TypeVolume, StartNum: start, EndNum: start}, true
 	}
 
 	if volMatches := VolRegex.FindStringSubmatch(cleanedTitle); len(volMatches) > 1 {
 		start, _ := strconv.ParseFloat(volMatches[1], 64)
 		if volMatches[2] != "" {
 			end, _ := strconv.ParseFloat(volMatches[2], 64)
-			return ParsedRelease{Type: TypeVolume, StartNum: start, EndNum: end}, true
+			return ParsedRelease{Type: models.TypeVolume, StartNum: start, EndNum: end}, true
 		}
-		return ParsedRelease{Type: TypeVolume, StartNum: start, EndNum: start}, true
+		return ParsedRelease{Type: models.TypeVolume, StartNum: start, EndNum: start}, true
 	}
 
 	if rangeMatches := chRangeRegex.FindStringSubmatch(cleanedTitle); len(rangeMatches) > 2 {
@@ -73,7 +67,7 @@ func ParseTorrentTitle(title string) (ParsedRelease, bool) {
 		start, _ := strconv.ParseFloat(startStr, 64)
 		end, _ := strconv.ParseFloat(endStr, 64)
 		if end > start {
-			return ParsedRelease{Type: TypeRange, StartNum: start, EndNum: end}, true
+			return ParsedRelease{Type: models.TypeRange, StartNum: start, EndNum: end}, true
 		}
 	}
 
@@ -81,7 +75,7 @@ func ParseTorrentTitle(title string) (ParsedRelease, bool) {
 		numStr := strings.ReplaceAll(strings.ToLower(singleMatches[1]), "x", ".")
 
 		num, _ := strconv.ParseFloat(numStr, 64)
-		return ParsedRelease{Type: TypeSingle, StartNum: num, EndNum: num}, true
+		return ParsedRelease{Type: models.TypeSingle, StartNum: num, EndNum: num}, true
 	}
 
 	return ParsedRelease{}, false

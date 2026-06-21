@@ -133,7 +133,7 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 	}
 
 	if len(results) == 0 {
-		log.Printf("Total search blackout across all known titles for: %s", series.Title)
+		log.Printf("[Search] Total search blackout across all known titles for: %s", series.Title)
 		return nil
 	}
 
@@ -141,11 +141,13 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 
 	for _, ch := range missing {
 		var bestTorrent *indexer.SearchResult
+		var bestParsed indexer.ParsedRelease
 		maxSeeders := -1
 
 		for _, res := range results {
 
-			if !IsChapterMatch(res, ch) {
+			parsedRelease, matched := IsChapterMatch(res, ch, series)
+			if !matched {
 				continue
 			}
 
@@ -153,6 +155,7 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 				maxSeeders = res.Seeders
 				tmp := res
 				bestTorrent = &tmp
+				bestParsed = parsedRelease
 			}
 		}
 
@@ -168,15 +171,22 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 			targetPath := getDownloadsPath()
 			err := os.MkdirAll(targetPath, 0755)
 			if err != nil {
-				log.Printf("Failed to create local directory %s: %v", targetPath, err)
+				log.Printf("[Search] Failed to create local directory %s: %v", targetPath, err)
 			}
 
-			log.Printf("Found optimal release for %s Ch %g [%s] -> %s (Seeds: %d)",
+			log.Printf("[Search] Found optimal release for %s Ch %g [%s] -> %s (Seeds: %d)",
 				series.Title, ch.Number, bestTorrent.Language, bestTorrent.Title, bestTorrent.Seeders)
 
-			err = e.Downloader.AddTorrentFromURL(bestTorrent.Link, targetPath, bestTorrent.SeedTime, bestTorrent.Language)
+			_, err = e.Downloader.AddTorrentFromURL(
+				bestTorrent.Link,
+				targetPath,
+				bestTorrent.SeedTime,
+				bestTorrent.Language,
+				series.ID,
+				bestParsed,
+			)
 			if err != nil {
-				log.Printf("Failed to dispatch torrent to client: %v", err)
+				log.Printf("[Search] Failed to dispatch torrent to client: %v", err)
 				continue
 			}
 
@@ -186,7 +196,7 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 				_ = e.ChapterStore.Update(ch)
 			}
 		} else {
-			log.Printf("No available candidate matches %s Ch %g for language [%s]",
+			log.Printf("[Search] No available candidate matches %s Ch %g for language [%s]",
 				series.Title, ch.Number, ch.Language)
 		}
 	}
@@ -194,43 +204,91 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 	return nil
 }
 
-func IsChapterMatch(res indexer.SearchResult, ch *models.Chapters) bool {
-	if res.Language != ch.Language {
-		return false
-	}
-
+func IsChapterMatch(res indexer.SearchResult, ch *models.Chapters, series *models.Series) (indexer.ParsedRelease, bool) {
 	titleLower := strings.ToLower(res.Title)
+
+	if !torrentMatchesSeries(titleLower, series) {
+		return indexer.ParsedRelease{}, false
+	}
+	
+	if res.Language != ch.Language {
+		return indexer.ParsedRelease{}, false
+	}
 
 	if strings.Contains(titleLower, "ln") ||
 		strings.Contains(titleLower, "novel") ||
 		strings.Contains(titleLower, "wn") ||
 		strings.Contains(titleLower, "epub") ||
 		strings.Contains(titleLower, "pdf") {
-		return false
+		return indexer.ParsedRelease{}, false
 	}
 
 	parsed, ok := indexer.ParseTorrentTitle(res.Title)
 
 	if !ok {
 		if strings.Contains(titleLower, "complete") || strings.Contains(titleLower, "digital") {
-			return true
+			return indexer.ParsedRelease{
+				Type: models.TypeRange,
+				StartNum: 0,
+				EndNum: 9999,
+			}, true
 		}
-		return false
+		return indexer.ParsedRelease{}, false
 	}
 
 	switch parsed.Type {
-	case indexer.TypeSingle:
-		return parsed.StartNum == ch.Number
+	case models.TypeSingle:
+		if parsed.StartNum == ch.Number {
+            return parsed, true
+        }
 
-	case indexer.TypeRange:
-		return ch.Number >= parsed.StartNum && ch.Number <= parsed.EndNum
+	case models.TypeRange:
+		if ch.Number >= parsed.StartNum && ch.Number <= parsed.EndNum {
+            return parsed, true
+        }
 
-	case indexer.TypeVolume:
+	case models.TypeVolume:
 		if ch.Volume != nil {
 			chVol := float64(*ch.Volume)
-			return chVol >= parsed.StartNum && chVol <= parsed.EndNum
+			if chVol >= parsed.StartNum && chVol <= parsed.EndNum {
+                return parsed, true
+            }
 		}
 	}
 
+	return indexer.ParsedRelease{}, false
+}
+
+func torrentMatchesSeries(torrentNameLower string, series *models.Series) bool {
+	normalize := func(s string) string {
+		replacer := strings.NewReplacer(
+			" ", "", "-", "", "_", "", ".", "",
+			":", "", "?", "", "!", "", `"`, "",
+			`'`, "", "`", "", "/", "", "\\", "",
+			"(", "", ")", "", "[", "", "]", "",
+			"★", "", "☆", "",
+		)
+
+		return strings.ToLower(replacer.Replace(s))
+	}
+
+	cleanTorrent := normalize(torrentNameLower)
+
+	if cleanSeries := normalize(series.Title); cleanSeries != "" {
+		if strings.Contains(cleanTorrent, cleanSeries) {
+			return true
+		}
+	}
+
+	for _, titlesSlice := range series.AltTitles {
+		for _, alt := range titlesSlice {
+			if cleanAlt := normalize(alt); cleanAlt != "" {
+				if strings.Contains(cleanTorrent, cleanAlt) {
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
+

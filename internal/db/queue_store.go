@@ -21,8 +21,8 @@ type SQLiteQueueStore struct {}
 
 func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 	query := `
-		INSERT INTO download_queue (torrent_hash, series_id, release_type, start_num, end_num, status, error_message, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+		INSERT INTO download_queue (torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	
 	var errMsg sql.NullString
@@ -40,6 +40,7 @@ func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 		string(item.ReleaseType),
 		item.StartNum,
 		item.EndNum,
+		item.Language,
 		string(item.Status),
 		errMsg,
 		item.CreatedAt,
@@ -49,7 +50,7 @@ func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 
 func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 	query := `
-		SELECT torrent_hash, series_id, release_type, start_num, end_num, status, error_message, created_at
+		SELECT torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at
 		FROM download_queue
 		WHERE torrent_hash = ?;
 	`
@@ -65,6 +66,7 @@ func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 		&relType,
 		&item.StartNum,
 		&item.EndNum,
+		&item.Language,
 		&status,
 		&errMsg,
 		&item.CreatedAt,
@@ -88,7 +90,7 @@ func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 
 func (s *SQLiteQueueStore) GetAll() ([]models.QueueItem, error) {
 	query := `
-		SELECT torrent_hash, series_id, release_type, start_num, end_num, status, error_message, created_at
+		SELECT torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at
 		FROM download_queue
 		ORDER BY created_at DESC;
 	`
@@ -112,6 +114,7 @@ func (s *SQLiteQueueStore) GetAll() ([]models.QueueItem, error) {
 			&relType,
 			&item.StartNum,
 			&item.EndNum,
+			&item.Language,
 			&status,
 			&errMsg,
 			&item.CreatedAt,

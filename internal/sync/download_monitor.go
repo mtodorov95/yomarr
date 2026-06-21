@@ -11,58 +11,24 @@ import (
 
 	"github.com/mtodorov95/yomarr/internal/db"
 	"github.com/mtodorov95/yomarr/internal/download"
-	"github.com/mtodorov95/yomarr/internal/indexer"
 	"github.com/mtodorov95/yomarr/internal/models"
 	"github.com/mtodorov95/yomarr/internal/utils"
 )
 
-const ImportedTag = "imported"
-
 type DownloadMonitor struct {
 	ChapterStore db.ChapterStore
 	SeriesStore  db.SeriesStore
+	QueueStore   db.QueueStore
 	Downloader   download.DownloadClient
 }
 
-func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, dl download.DownloadClient) *DownloadMonitor {
+func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, dl download.DownloadClient, qs db.QueueStore) *DownloadMonitor {
 	return &DownloadMonitor{
 		ChapterStore: cs,
 		SeriesStore:  ss,
 		Downloader:   dl,
+		QueueStore:   qs,
 	}
-}
-
-func TorrentMatchesSeries(torrentNameLower string, series models.Series) bool {
-	normalize := func(s string) string {
-		replacer := strings.NewReplacer(
-			" ", "", "-", "", "_", "", ".", "",
-			":", "", "?", "", "!", "", `"`, "",
-			`'`, "", "`", "", "/", "", "\\", "",
-			"(", "", ")", "", "[", "", "]", "",
-			"★", "", "☆", "",
-		)
-
-		return strings.ToLower(replacer.Replace(s))
-	}
-
-	cleanTorrent := normalize(torrentNameLower)
-
-	if cleanSeries := normalize(series.Title); cleanSeries != "" {
-		if strings.Contains(cleanTorrent, cleanSeries) {
-			return true
-		}
-	}
-
-	for _, titlesSlice := range series.AltTitles {
-		for _, alt := range titlesSlice {
-			if cleanAlt := normalize(alt); cleanAlt != "" {
-				if strings.Contains(cleanTorrent, cleanAlt) {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (m *DownloadMonitor) importToLibrary(series models.Series, torrentName string, language string) (string, error) {
@@ -187,164 +153,81 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 		return nil
 	}
 
-	allSeries, err := m.SeriesStore.GetAll()
-	if err != nil {
-		return err
-	}
-
-	seriesMap := make(map[int64]models.Series)
-	for _, s := range allSeries {
-		seriesMap[s.ID] = s
-	}
-
 	allChapters, err := m.ChapterStore.GetByStatus(string(models.ChapterDownloading))
 	if err != nil {
 		return err
 	}
 
 	for _, torrent := range torrents {
+		queueItem, err := m.QueueStore.Get(torrent.Hash)
+		if err != nil || queueItem == nil {
+			// Torrent isn't tracked in queue
+			continue
+		}
+
 		if torrent.Progress != 1.0 {
+			if queueItem.Status != models.QueueDownloading {
+				_ = m.QueueStore.UpdateStatus(queueItem.TorrentHash, models.QueueDownloading, nil)
+			}
 			continue
 		}
 
-		isAlreadyImported := false
-		torrentLang := "en"
-
-		for _, tag := range torrent.Tags {
-			if tag == ImportedTag {
-				isAlreadyImported = true
-			}
-			if tag == "raw" {
-				torrentLang = "raw"
-			}
-		}
-
-		if isAlreadyImported {
+		series, err := m.SeriesStore.GetById(queueItem.SeriesID)
+		if err != nil {
+			log.Printf("[Monitor Error] Orphaned queue item %s linked to missing series ID %d", torrent.Hash, queueItem.SeriesID)
 			continue
 		}
 
-		torrentNameLower := strings.ToLower(torrent.Name)
-		parsed, ok := indexer.ParseTorrentTitle(torrent.Name)
+		torrentLang := queueItem.Language
+		if torrentLang == "" {
+			torrentLang = "en"
+		}
 
-		isMultiVolumePack := ok && parsed.Type == indexer.TypeVolume && parsed.EndNum > parsed.StartNum
-		isBatchText := strings.Contains(torrentNameLower, "complete") || strings.Contains(torrentNameLower, "digital") || strings.Contains(torrentNameLower, "batch")
-
-		if !ok || isMultiVolumePack || isBatchText {
-			for _, series := range allSeries {
-				if TorrentMatchesSeries(torrentNameLower, series) {
-
-					if isMultiVolumePack {
-						hasMatchingVolChapter := false
-						for _, ch := range allChapters {
-							if ch.SeriesID == series.ID && ch.Volume != nil {
-								chVol := float64(*ch.Volume)
-								if chVol >= parsed.StartNum && chVol <= parsed.EndNum {
-									hasMatchingVolChapter = true
-									break
-								}
-							}
-						}
-						if !hasMatchingVolChapter {
-							continue
-						}
-
-					}
-
-					log.Printf("[Monitor] Multi-volume or batch release finished for: %s! Processing library mapping...", series.Title)
-
-					finalLibraryPath, err := m.importToLibrary(series, torrent.Name, torrentLang)
-					if err != nil {
-						log.Printf("[Monitor Error] Failed importing file to library: %v", err)
-						continue
-					}
-
-					for i := range allChapters {
-						ch := &allChapters[i]
-						chLang := ch.Language
-						if chLang == "" {
-							chLang = "en"
-						}
-
-						if ch.SeriesID == series.ID && ch.Status == models.ChapterDownloading && chLang == torrentLang {
-							if isMultiVolumePack && ch.Volume != nil {
-								chVol := float64(*ch.Volume)
-								if chVol < parsed.StartNum || chVol > parsed.EndNum {
-									continue
-								}
-							}
-
-							ch.Status = models.ChapterDownloaded
-							ch.FilePath = &finalLibraryPath
-							if err := m.ChapterStore.Update(ch); err != nil {
-								log.Printf("[Monitor Error] Failed batch updating Ch %g: %v", ch.Number, err)
-							}
-						}
-					}
-
-					if err := m.Downloader.MarkAsImported(torrent.Hash); err != nil {
-						log.Printf("[Monitor Error] Failed tagging batch torrent %s: %v", torrent.Hash, err)
-					}
-				}
-			}
+		finalLibraryPath, err := m.importToLibrary(*series, torrent.Name, torrentLang)
+		if err != nil {
+			log.Printf("[Monitor Error] Failed importing files to destination paths: %v", err)
+			errMsg := err.Error()
+			_ = m.QueueStore.UpdateStatus(queueItem.TorrentHash, models.QueueFailedImport, &errMsg)
 			continue
 		}
 
 		for i := range allChapters {
 			ch := &allChapters[i]
 
-			series, exists := seriesMap[ch.SeriesID]
-			if !exists {
-				continue
-			}
-
-			if !TorrentMatchesSeries(torrentNameLower, series) {
-				continue
-			}
-
-			chLang := ch.Language
-			if chLang == "" {
-				chLang = "en"
-			}
-			if chLang != torrentLang {
+			if ch.SeriesID != series.ID || ch.Language != torrentLang {
 				continue
 			}
 
 			isMatch := false
-			switch parsed.Type {
-			case indexer.TypeSingle:
-				if parsed.StartNum == ch.Number {
+			switch queueItem.ReleaseType {
+			case models.TypeSingle:
+				if queueItem.StartNum == ch.Number {
 					isMatch = true
 				}
-			case indexer.TypeRange:
-				if ch.Number >= parsed.StartNum && ch.Number <= parsed.EndNum {
+			case models.TypeRange:
+				if ch.Number >= queueItem.StartNum && ch.Number <= queueItem.EndNum {
 					isMatch = true
 				}
-			case indexer.TypeVolume:
-				if ch.Volume != nil && float64(*ch.Volume) >= parsed.StartNum && float64(*ch.Volume) <= parsed.EndNum {
-					isMatch = true
+			case models.TypeVolume:
+				if ch.Volume != nil {
+					chVol := float64(*ch.Volume)
+					if chVol >= queueItem.StartNum && chVol <= queueItem.EndNum {
+						isMatch = true
+					}
 				}
 			}
 
 			if isMatch {
-				log.Printf("[Monitor] Torrent finished! Marking Ch %g as Downloaded: %s", ch.Number, torrent.Name)
-
-				finalLibraryPath, err := m.importToLibrary(series, torrent.Name, torrentLang)
-				if err != nil {
-					log.Printf("[Monitor Error] Failed importing file to library: %v", err)
-					continue
-				}
-
 				ch.Status = models.ChapterDownloaded
 				ch.FilePath = &finalLibraryPath
-
 				if err := m.ChapterStore.Update(ch); err != nil {
 					log.Printf("[Monitor Error] Failed updating database for Ch %g: %v", ch.Number, err)
 				}
-
-				if err := m.Downloader.MarkAsImported(torrent.Hash); err != nil {
-					log.Printf("[Monitor Error] Failed tagging single/volume torrent %s: %v", torrent.Hash, err)
-				}
 			}
+		}
+
+		if err := m.Downloader.MarkAsImported(torrent.Hash); err != nil {
+			log.Printf("[Monitor Error] Failed tagging single/volume torrent %s: %v", torrent.Hash, err)
 		}
 	}
 

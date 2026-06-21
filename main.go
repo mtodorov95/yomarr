@@ -50,8 +50,10 @@ func main() {
 	indexerStore := &db.SQLiteIndexerStore{}
 	// Download
 	clientStore := &db.SQLiteDownloadClientStore{}
+	// Queue
+	queueStore := &db.SQLiteQueueStore{}
 	// Sync
-	manager := sync.NewDynamicManager(indexerStore, clientStore)
+	manager := sync.NewDynamicManager(indexerStore, clientStore, queueStore)
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
 	searchEngine := sync.NewSearchEngine(chapterStore, seriesStore, manager, manager)
 	rssEngine := sync.NewRssEngine(chapterStore, seriesStore, manager)

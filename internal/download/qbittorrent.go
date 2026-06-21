@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mtodorov95/yomarr/internal/indexer"
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
@@ -77,13 +78,8 @@ func (q *QBittorrentClient) login() error {
 	return nil
 }
 
-func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string, seedTime int, language string) error {
+func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease) (string, error) {
 	addURL := fmt.Sprintf("%s/api/v2/torrents/add", q.BaseURL)
-
-	langTag := strings.ToLower(language)
-	if langTag == "" {
-		langTag = "en"
-	}
 
 	categoryTarget := q.Cfg.Category
 	if categoryTarget == "" {
@@ -94,45 +90,41 @@ func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string
 	data.Set("urls", torrentURL)
 	data.Set("savepath", savePath)
 	data.Set("category", categoryTarget)
-	data.Set("tags", langTag)
 	data.Set("ratioLimit", "-2")
 	data.Set("seedingTimeLimit", strconv.Itoa(seedTime))
 
 	resp, err := q.Client.PostForm(addURL, data)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to add torrent, code: %d", resp.StatusCode)
+		return "", fmt.Errorf("failed to add torrent, code: %d", resp.StatusCode)
 	}
 
-	return nil
+	infoHash := ""
+	if strings.HasPrefix(torrentURL, "magnet:") {
+		if u, err := url.Parse(torrentURL); err == nil {
+			xt := u.Query().Get("xt")
+			if strings.HasPrefix(xt, "urn:btih:") {
+				infoHash = strings.ToLower(strings.TrimPrefix(xt, "urn:btih:"))
+			}
+		}
+	}
+
+	if infoHash == "" {
+		downloads, err := q.GetActiveDownloads()
+		if err == nil && len(downloads) > 0 {
+			infoHash = downloads[len(downloads)-1].Hash
+		}
+	}
+
+	return infoHash, nil
 }
 
-func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string, seedTime int, language string) error {
-	return q.AddTorrentFromURL(magnet, savePath, seedTime, language)
-}
-
-func (q *QBittorrentClient) AddTorrentTags(hash string, tags string) error {
-	addTagsURL := fmt.Sprintf("%s/api/v2/torrents/addTags", q.BaseURL)
-
-	data := url.Values{}
-	data.Set("hashes", hash)
-	data.Set("tags", tags)
-
-	resp, err := q.Client.PostForm(addTagsURL, data)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to add tags to torrent %s, code: %d", hash, resp.StatusCode)
-	}
-
-	return nil
+func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease) (string, error) {
+	return q.AddTorrentFromURL(magnet, savePath, seedTime, language, seriesID, release)
 }
 
 func (q *QBittorrentClient) GetActiveDownloads() ([]TorrentInfo, error) {
@@ -178,5 +170,5 @@ func (q *QBittorrentClient) GetActiveDownloads() ([]TorrentInfo, error) {
 }
 
 func (q *QBittorrentClient) MarkAsImported(hash string) error {
-	return q.AddTorrentTags(hash, "imported")
+	return nil
 }
