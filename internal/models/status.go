@@ -6,6 +6,7 @@ const (
 	SeriesOngoing     SeriesStatus = "Ongoing"
 	SeriesHiatus      SeriesStatus = "Hiatus"
 	SeriesCompleted   SeriesStatus = "Completed"
+	SeriesDownloading SeriesStatus = "Downloading"
 	SeriesUnmonitored SeriesStatus = "Unmonitored"
 )
 

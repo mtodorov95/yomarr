@@ -60,7 +60,10 @@ func (m *DynamicManager) AddTorrentFromURL(url string, savePath string, seedTime
 			Status:      models.QueueDownloading,
 		}
 		
-		_ = m.QueueStore.Insert(queueItem)
+		if err := m.QueueStore.Insert(queueItem); err != nil {
+            log.Printf("[Manager Error] CRITICAL: Failed to insert torrent hash %s to DB: %v", hash, err)
+            return hash, err
+        }
 	}
 
 	return hash, nil

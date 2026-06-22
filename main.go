@@ -52,12 +52,13 @@ func main() {
 	clientStore := &db.SQLiteDownloadClientStore{}
 	// Queue
 	queueStore := &db.SQLiteQueueStore{}
+	eventHub := sync.NewEventHub()
 	// Sync
 	manager := sync.NewDynamicManager(indexerStore, clientStore, queueStore)
 	syncEngine := sync.NewMangaDexSyncEngine(chapterStore, mangadex)
 	searchEngine := sync.NewSearchEngine(chapterStore, seriesStore, manager, manager)
 	rssEngine := sync.NewRssEngine(chapterStore, seriesStore, manager)
-	monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, manager)
+	monitor := sync.NewDownloadMonitor(chapterStore, seriesStore, manager, queueStore, eventHub)
 
 	scanner := sync.NewLibraryScanner(chapterStore, seriesStore, aggregator, syncEngine)
 	if err := scanner.ScanLibrary(); err != nil {
@@ -106,6 +107,9 @@ func main() {
 
 	systemHandler := api.NewSystemHandler(seriesStore, chapterStore)
 	mux.HandleFunc("/api/system/stats", systemHandler.HandleSystemStats)
+
+	activityHandler := api.NewEventHandler(eventHub)
+	mux.HandleFunc("/api/activity", activityHandler.HandleStream)
 
 	// Assets
 	mux.HandleFunc("/api/proxy-cover", api.ProxyCoverHandler)

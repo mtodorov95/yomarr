@@ -37,11 +37,11 @@ async function handleImport(item: Series) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                mangadex_id: item.mangadex_id || null,  
-                anilist_id: item.anilist_id || null,     
-                title: item.title,                  
+                mangadex_id: item.mangadex_id || null,
+                anilist_id: item.anilist_id || null,
+                title: item.title,
                 alt_titles: item.alt_titles || [],
-                status: item.status || 'Ongoing',     
+                status: item.status || 'Ongoing',
                 path: item.localPath,
                 total_chapters: item.total_chapters || 0
             })
@@ -56,7 +56,7 @@ async function handleImport(item: Series) {
 
 onMounted(() => {
     checkHealth()
-    
+
     healthIntervalId = setInterval(checkHealth, 10 * 60 * 1000)
 })
 
@@ -71,8 +71,10 @@ onUnmounted(() => {
 
         <header class="mobile-navbar">
             <label for="sidebar-toggle" class="burger-menu-btn" aria-label="Toggle Navigation Panel">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="burger-icon">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                    stroke="currentColor" class="burger-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                 </svg>
             </label>
             <RouterLink to="/" class="brand-logo-link">
@@ -94,16 +96,22 @@ onUnmounted(() => {
                         <span class="nav-icon">➕</span>
                         <span class="nav-text">Add New</span>
                     </RouterLink>
+                    <RouterLink to="/activity" class="nav-item" active-class="active-nav">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">Activity</span>
+                    </RouterLink>
                     <RouterLink to="/settings" class="nav-item" active-class="active-nav">
                         <span class="nav-icon">⚙️</span>
                         <span class="nav-text">Settings</span>
                     </RouterLink>
 
                     <div v-if="route.path.startsWith('/settings')" class="sidebar-sub-nav">
-                        <RouterLink to="/settings?tab=indexers" class="sub-nav-item" :class="{ 'active-sub-nav': route.query.tab === 'indexers' || !route.query.tab }">
+                        <RouterLink to="/settings?tab=indexers" class="sub-nav-item"
+                            :class="{ 'active-sub-nav': route.query.tab === 'indexers' || !route.query.tab }">
                             Indexers
                         </RouterLink>
-                        <RouterLink to="/settings?tab=download-clients" class="sub-nav-item" :class="{ 'active-sub-nav': route.query.tab === 'download-clients' }">
+                        <RouterLink to="/settings?tab=download-clients" class="sub-nav-item"
+                            :class="{ 'active-sub-nav': route.query.tab === 'download-clients' }">
                             Download Clients
                         </RouterLink>
                     </div>
@@ -113,19 +121,17 @@ onUnmounted(() => {
             <div class="sidebar-footer">
                 <div class="system-status">
                     <div class="status-meta-row">
-                        <span class="status-indicator-dot" :class="{ 'is-ok': status === 'ok', 'is-error': status !== 'ok' }"></span>
+                        <span class="status-indicator-dot"
+                            :class="{ 'is-ok': status === 'ok', 'is-error': status !== 'ok' }"></span>
                         <span class="status-label">Status: <strong>{{ status }}</strong></span>
-                        
-                        <button 
-                            @click="checkHealth" 
-                            class="health-refresh-btn" 
-                            :class="{ 'is-spinning': checkingHealth }"
-                            :disabled="checkingHealth"
-                            title="Force Health Validation Check"
-                            aria-label="Refresh status"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="refresh-svg-icon">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+
+                        <button @click="checkHealth" class="health-refresh-btn"
+                            :class="{ 'is-spinning': checkingHealth }" :disabled="checkingHealth"
+                            title="Force Health Validation Check" aria-label="Refresh status">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                                stroke="currentColor" class="refresh-svg-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                             </svg>
                         </button>
                     </div>
@@ -416,17 +422,22 @@ onUnmounted(() => {
 }
 
 @keyframes spin-clockwise {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @media (max-width: 768px) {
     .mobile-navbar {
-        display: flex; 
+        display: flex;
     }
 
     .app-sidebar {
-        transform: translateX(-100%); 
+        transform: translateX(-100%);
         top: 0;
     }
 
@@ -436,12 +447,12 @@ onUnmounted(() => {
         width: 100%;
     }
 
-    .sidebar-state-checkbox:checked ~ .app-sidebar {
-        transform: translateX(0); 
+    .sidebar-state-checkbox:checked~.app-sidebar {
+        transform: translateX(0);
     }
 
-    .sidebar-state-checkbox:checked ~ .sidebar-overlay-backdrop {
-        display: block; 
+    .sidebar-state-checkbox:checked~.sidebar-overlay-backdrop {
+        display: block;
     }
 }
 </style>

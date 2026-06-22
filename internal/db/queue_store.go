@@ -8,23 +8,23 @@ import (
 	"github.com/mtodorov95/yomarr/internal/models"
 )
 
-
 type QueueStore interface {
 	Insert(item *models.QueueItem) error
 	Get(hash string) (*models.QueueItem, error)
 	GetAll() ([]models.QueueItem, error)
 	UpdateStatus(hash string, status models.QueueStatus, errMsg *string) error
+	HasActiveDownloadsForSeries(seriesId int64, hash string) (bool, error)
 	Remove(hash string) error
 }
 
-type SQLiteQueueStore struct {}
+type SQLiteQueueStore struct{}
 
 func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 	query := `
 		INSERT INTO download_queue (torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	
+
 	var errMsg sql.NullString
 	if item.ErrorMessage != nil {
 		errMsg = sql.NullString{String: *item.ErrorMessage, Valid: true}
@@ -54,7 +54,7 @@ func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 		FROM download_queue
 		WHERE torrent_hash = ?;
 	`
-	
+
 	var item models.QueueItem
 	var relType string
 	var status string
@@ -141,7 +141,7 @@ func (s *SQLiteQueueStore) UpdateStatus(hash string, status models.QueueStatus, 
 		SET status = ?, error_message = ?
 		WHERE torrent_hash = ?;
 	`
-	
+
 	var dbErrMsg sql.NullString
 	if errMsg != nil {
 		dbErrMsg = sql.NullString{String: *errMsg, Valid: true}
@@ -155,4 +155,14 @@ func (s *SQLiteQueueStore) Remove(hash string) error {
 	query := `DELETE FROM download_queue WHERE torrent_hash = ?;`
 	_, err := DB.Exec(query, hash)
 	return err
+}
+
+func (s *SQLiteQueueStore) HasActiveDownloadsForSeries(seriesId int64, hash string) (bool, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM download_queue WHERE series_id = ? AND torrent_hash != ?`
+	err := DB.QueryRow(query, seriesId, hash).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

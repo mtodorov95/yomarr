@@ -20,14 +20,16 @@ type DownloadMonitor struct {
 	SeriesStore  db.SeriesStore
 	QueueStore   db.QueueStore
 	Downloader   download.DownloadClient
+	Hub          *EventHub
 }
 
-func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, dl download.DownloadClient, qs db.QueueStore) *DownloadMonitor {
+func NewDownloadMonitor(cs db.ChapterStore, ss db.SeriesStore, dl download.DownloadClient, qs db.QueueStore, hub *EventHub) *DownloadMonitor {
 	return &DownloadMonitor{
 		ChapterStore: cs,
 		SeriesStore:  ss,
 		Downloader:   dl,
 		QueueStore:   qs,
+		Hub:          hub,
 	}
 }
 
@@ -128,7 +130,7 @@ func moveOrCopyFile(src, dest string) error {
 }
 
 func (m *DownloadMonitor) Start() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	go func() {
 		log.Println("[Monitor] Post-Download Sync Daemon initialized")
 		for range ticker.C {
@@ -165,16 +167,47 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 			continue
 		}
 
-		if torrent.Progress != 1.0 {
-			if queueItem.Status != models.QueueDownloading {
-				_ = m.QueueStore.UpdateStatus(queueItem.TorrentHash, models.QueueDownloading, nil)
-			}
-			continue
-		}
-
 		series, err := m.SeriesStore.GetById(queueItem.SeriesID)
 		if err != nil {
 			log.Printf("[Monitor Error] Orphaned queue item %s linked to missing series ID %d", torrent.Hash, queueItem.SeriesID)
+			continue
+		}
+
+		var releaseDetail string
+		switch queueItem.ReleaseType {
+		case models.TypeSingle:
+			releaseDetail = fmt.Sprintf("Chapter %.1f", queueItem.StartNum)
+		case models.TypeRange:
+			releaseDetail = fmt.Sprintf("Chapters %.1f - %.1f", queueItem.StartNum, queueItem.EndNum)
+		case models.TypeVolume:
+			if queueItem.EndNum > queueItem.StartNum {
+				releaseDetail = fmt.Sprintf("Volumes %.0f - %.0f", queueItem.StartNum, queueItem.EndNum)
+			} else {
+				releaseDetail = fmt.Sprintf("Volume %.0f", queueItem.StartNum)
+			}
+		default:
+			releaseDetail = "Processing..."
+		}
+
+		if torrent.Progress != 1.0 {
+			if queueItem.Status != models.QueueDownloading {
+				_ = m.QueueStore.UpdateStatus(queueItem.TorrentHash, models.QueueDownloading, nil)
+				series.Status = models.SeriesDownloading
+				if err := m.SeriesStore.Update(series); err != nil {
+					log.Printf("[Monitor Error] Failed to update status to downloading for series %d: %v", series.ID, err)
+				}
+			}
+
+			m.Hub.Broadcast(models.QueueEvent{
+				TorrentHash:   torrent.Hash,
+				Status:        models.QueueDownloading,
+				Progress:      torrent.Progress,
+				Name:          torrent.Name,
+				SeriesID:      series.ID,
+				SeriesTitle:   series.Title,
+				ReleaseDetail: releaseDetail,
+				Error: nil,
+			})
 			continue
 		}
 
@@ -188,6 +221,16 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 			log.Printf("[Monitor Error] Failed importing files to destination paths: %v", err)
 			errMsg := err.Error()
 			_ = m.QueueStore.UpdateStatus(queueItem.TorrentHash, models.QueueFailedImport, &errMsg)
+			m.Hub.Broadcast(models.QueueEvent{
+				TorrentHash:   torrent.Hash,
+				Status:        models.QueueFailedImport,
+				Progress:      torrent.Progress,
+				Name:          torrent.Name,
+				Error:         &errMsg,
+				SeriesID:      series.ID,
+				SeriesTitle:   series.Title,
+				ReleaseDetail: releaseDetail,
+			})
 			continue
 		}
 
@@ -225,6 +268,29 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 				}
 			}
 		}
+
+		hasMoreDownloads, err := m.QueueStore.HasActiveDownloadsForSeries(series.ID, torrent.Hash)
+		if err != nil {
+			log.Printf("[Monitor Error] Failed to check remaining queue items for series %d: %v", series.ID, err)
+		}
+
+		if !hasMoreDownloads {
+			series.Status = models.SeriesOngoing
+			if err := m.SeriesStore.Update(series); err != nil {
+				log.Printf("[Monitor Error] Failed to reset status for series %d: %v", series.ID, err)
+			}
+		}
+
+		m.Hub.Broadcast(models.QueueEvent{
+			TorrentHash:   torrent.Hash,
+			Status:        "Imported",
+			Progress:      1.0,
+			Name:          torrent.Name,
+			SeriesID:      series.ID,
+			SeriesTitle:   series.Title,
+			ReleaseDetail: releaseDetail,
+			Error: nil,
+		})
 
 		if err := m.Downloader.MarkAsImported(torrent.Hash); err != nil {
 			log.Printf("[Monitor Error] Failed tagging single/volume torrent %s: %v", torrent.Hash, err)

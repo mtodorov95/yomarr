@@ -105,6 +105,7 @@ const truncatedTitle = computed(() => {
                         'status-ongoing': series.status?.toLowerCase() === 'ongoing',
                         'status-completed': series.status?.toLowerCase() === 'completed',
                         'status-hiatus': series.status?.toLowerCase() === 'hiatus',
+                        'status-downloading': series.status?.toLowerCase() === 'downloading',
                         'status-unmonitored': series.status?.toLowerCase() === 'unmonitored'
                     }"
                     :style="{ width: getCompletionPercentage() + '%' }"
@@ -296,6 +297,10 @@ const truncatedTitle = computed(() => {
 
 .progress-fill-bar.status-hiatus { 
     background-color: #f97316;
+}
+
+.progress-fill-bar.status-downloading { 
+    background-color: #9333ea;
 }
 
 .progress-fill-bar.status-unmonitored { 

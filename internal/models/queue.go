@@ -31,3 +31,14 @@ type QueueItem struct {
 	ErrorMessage *string     `json:"error_message,omitempty"`
 	CreatedAt    time.Time   `json:"created_at"`
 }
+
+type QueueEvent struct {
+	TorrentHash   string      `json:"torrent_hash"`
+	Status        QueueStatus `json:"status"`
+	Progress      float64     `json:"progress"`
+	Name          string      `json:"name"`
+	SeriesID      int64       `json:"series_id"`
+	SeriesTitle   string      `json:"series_title"`
+	ReleaseDetail string      `json:"release_detail"`
+	Error         *string     `json:"error,omitempty"`
+}

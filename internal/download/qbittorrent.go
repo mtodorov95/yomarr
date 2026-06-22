@@ -114,6 +114,8 @@ func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string
 	}
 
 	if infoHash == "" {
+		time.Sleep(150 * time.Millisecond)
+
 		downloads, err := q.GetActiveDownloads()
 		if err == nil && len(downloads) > 0 {
 			infoHash = downloads[len(downloads)-1].Hash
