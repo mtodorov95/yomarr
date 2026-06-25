@@ -15,10 +15,12 @@ type DownloadClientStore interface {
 	Delete(id int64) error
 }
 
-type SQLiteDownloadClientStore struct{}
+type SQLiteDownloadClientStore struct{
+	DB *sql.DB
+}
 
 func (store *SQLiteDownloadClientStore) GetAll() ([]models.DownloadClient, error) {
-	rows, err := DB.Query("SELECT id, name, host, port, use_ssl, username, password, category FROM download_clients")
+	rows, err := store.DB.Query("SELECT id, name, host, port, use_ssl, username, password, category FROM download_clients")
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +46,7 @@ func (store *SQLiteDownloadClientStore) GetAll() ([]models.DownloadClient, error
 
 func (store *SQLiteDownloadClientStore) GetByID(id int64) (*models.DownloadClient, error) {
 	var dc models.DownloadClient
-	err := DB.QueryRow("SELECT id, name, host, port, use_ssl, username, password, category FROM download_clients WHERE id = ?", id).Scan(
+	err := store.DB.QueryRow("SELECT id, name, host, port, use_ssl, username, password, category FROM download_clients WHERE id = ?", id).Scan(
 		&dc.ID, &dc.Name, &dc.Host, &dc.Port, &dc.UseSSL, &dc.Username, &dc.Password, &dc.Category,
 	)
 	if err != nil {
@@ -58,7 +60,7 @@ func (store *SQLiteDownloadClientStore) GetByID(id int64) (*models.DownloadClien
 }
 
 func (store *SQLiteDownloadClientStore) Insert(dc *models.DownloadClient) error {
-	res, err := DB.Exec(
+	res, err := store.DB.Exec(
 		"INSERT INTO download_clients (name, host, port, use_ssl, username, password, category) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		dc.Name, dc.Host, dc.Port, dc.UseSSL, dc.Username, dc.Password, dc.Category,
 	)
@@ -70,7 +72,7 @@ func (store *SQLiteDownloadClientStore) Insert(dc *models.DownloadClient) error 
 }
 
 func (store *SQLiteDownloadClientStore) Update(dc *models.DownloadClient) error {
-	_, err := DB.Exec(
+	_, err := store.DB.Exec(
 		"UPDATE download_clients SET name=?, host=?, port=?, use_ssl=?, username=?, password=?, category=? WHERE id=?",
 		dc.Name, dc.Host, dc.Port, dc.UseSSL, dc.Username, dc.Password, dc.Category, dc.ID,
 	)
@@ -78,6 +80,6 @@ func (store *SQLiteDownloadClientStore) Update(dc *models.DownloadClient) error 
 }
 
 func (store *SQLiteDownloadClientStore) Delete(id int64) error {
-	_, err := DB.Exec("DELETE FROM download_clients WHERE id = ?", id)
+	_, err := store.DB.Exec("DELETE FROM download_clients WHERE id = ?", id)
 	return err
 }

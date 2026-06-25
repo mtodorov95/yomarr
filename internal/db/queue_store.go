@@ -17,9 +17,11 @@ type QueueStore interface {
 	Remove(hash string) error
 }
 
-type SQLiteQueueStore struct{}
+type SQLiteQueueStore struct{
+	DB *sql.DB
+}
 
-func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
+func (store *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 	query := `
 		INSERT INTO download_queue (torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
@@ -34,7 +36,7 @@ func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 		item.CreatedAt = time.Now()
 	}
 
-	_, err := DB.Exec(query,
+	_, err := store.DB.Exec(query,
 		item.TorrentHash,
 		item.SeriesID,
 		string(item.ReleaseType),
@@ -48,7 +50,7 @@ func (s *SQLiteQueueStore) Insert(item *models.QueueItem) error {
 	return err
 }
 
-func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
+func (store *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 	query := `
 		SELECT torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at
 		FROM download_queue
@@ -60,7 +62,7 @@ func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 	var status string
 	var errMsg sql.NullString
 
-	err := DB.QueryRow(query, hash).Scan(
+	err := store.DB.QueryRow(query, hash).Scan(
 		&item.TorrentHash,
 		&item.SeriesID,
 		&relType,
@@ -88,14 +90,14 @@ func (s *SQLiteQueueStore) Get(hash string) (*models.QueueItem, error) {
 	return &item, nil
 }
 
-func (s *SQLiteQueueStore) GetAll() ([]models.QueueItem, error) {
+func (store *SQLiteQueueStore) GetAll() ([]models.QueueItem, error) {
 	query := `
 		SELECT torrent_hash, series_id, release_type, start_num, end_num, language, status, error_message, created_at
 		FROM download_queue
 		ORDER BY created_at DESC;
 	`
 
-	rows, err := DB.Query(query)
+	rows, err := store.DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +137,7 @@ func (s *SQLiteQueueStore) GetAll() ([]models.QueueItem, error) {
 	return items, nil
 }
 
-func (s *SQLiteQueueStore) UpdateStatus(hash string, status models.QueueStatus, errMsg *string) error {
+func (store *SQLiteQueueStore) UpdateStatus(hash string, status models.QueueStatus, errMsg *string) error {
 	query := `
 		UPDATE download_queue
 		SET status = ?, error_message = ?
@@ -147,20 +149,20 @@ func (s *SQLiteQueueStore) UpdateStatus(hash string, status models.QueueStatus, 
 		dbErrMsg = sql.NullString{String: *errMsg, Valid: true}
 	}
 
-	_, err := DB.Exec(query, string(status), dbErrMsg, hash)
+	_, err := store.DB.Exec(query, string(status), dbErrMsg, hash)
 	return err
 }
 
-func (s *SQLiteQueueStore) Remove(hash string) error {
+func (store *SQLiteQueueStore) Remove(hash string) error {
 	query := `DELETE FROM download_queue WHERE torrent_hash = ?;`
-	_, err := DB.Exec(query, hash)
+	_, err := store.DB.Exec(query, hash)
 	return err
 }
 
-func (s *SQLiteQueueStore) HasActiveDownloadsForSeries(seriesId int64, hash string) (bool, error) {
+func (store *SQLiteQueueStore) HasActiveDownloadsForSeries(seriesId int64, hash string) (bool, error) {
 	var count int
 	query := `SELECT COUNT(*) FROM download_queue WHERE series_id = ? AND torrent_hash != ?`
-	err := DB.QueryRow(query, seriesId, hash).Scan(&count)
+	err := store.DB.QueryRow(query, seriesId, hash).Scan(&count)
 	if err != nil {
 		return false, err
 	}

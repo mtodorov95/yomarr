@@ -43,24 +43,20 @@ func (h *SystemHandler) HandleSystemStats(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	start := time.Now()
+
 	h.cacheMutex.RLock()
 	useCache := h.cachedStats != nil && time.Since(h.lastCached) < h.cacheTTL
 	if useCache {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(h.cachedStats)
+		log.Printf("[System API] Cache HIT. Served stats in %v. Next refresh in %v", time.Since(start), h.cacheTTL-time.Since(h.lastCached))
 		h.cacheMutex.RUnlock()
 		return
 	}
 	h.cacheMutex.RUnlock()
 
-	h.cacheMutex.Lock()
-	defer h.cacheMutex.Unlock()
-
-	if h.cachedStats != nil && time.Since(h.lastCached) < h.cacheTTL {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(h.cachedStats)
-		return
-	}
+	log.Printf("[System API] Cache MISS or expired. Computing fresh stats...")
 
 	seriesCount, err := h.SeriesStore.Count()
 	if err != nil {
@@ -68,14 +64,22 @@ func (h *SystemHandler) HandleSystemStats(w http.ResponseWriter, r *http.Request
 		seriesCount = 0
 	}
 
-	completedCount, _ := h.ChapterStore.CountByStatus(string(models.ChapterDownloaded))
-	missingCount, _ := h.ChapterStore.CountByStatus(string(models.ChapterMissing))
+	completedCount, err := h.ChapterStore.CountByStatus(string(models.ChapterDownloaded))
+	if err != nil {
+		log.Printf("[System API Error] Failed counting downloaded chapters for state '%s': %v", string(models.ChapterDownloaded), err)
+	}
+	missingCount, err := h.ChapterStore.CountByStatus(string(models.ChapterMissing))
+	if err != nil {
+		log.Printf("[System API Error] Failed counting missing chapters for state '%s': %v", string(models.ChapterMissing), err)
+	}
 
 	libraryRoot := os.Getenv("MANGA_LIBRARY_ROOT")
 	if libraryRoot == "" {
 		libraryRoot = "/Manga"
 	}
 
+	log.Printf("[System API] Traversing storage footprint at path: %s", libraryRoot)
+	diskStart := time.Now()
 	var sizeOnDisk int64
 	err = filepath.Walk(libraryRoot, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -89,7 +93,9 @@ func (h *SystemHandler) HandleSystemStats(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		log.Printf("[System API Warning] Error calculating disk storage profile footprint: %v", err)
 	}
+	log.Printf("[System API] Storage scan completed in %v", time.Since(diskStart))
 
+	h.cacheMutex.Lock()
 	h.cachedStats = &SystemStatsResponse{
 		TotalSeries:        seriesCount,
 		DownloadedChapters: completedCount,
@@ -97,7 +103,9 @@ func (h *SystemHandler) HandleSystemStats(w http.ResponseWriter, r *http.Request
 		SizeOnDiskBytes:    sizeOnDisk,
 	}
 	h.lastCached = time.Now()
+	h.cacheMutex.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(h.cachedStats)
+	log.Printf("[System API] Cache updated successfully. Total execution time: %v", time.Since(start))
 }

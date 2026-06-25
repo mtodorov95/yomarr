@@ -50,13 +50,14 @@ func (e *RssEngine) StartBackgroundRssCheck(interval time.Duration) {
 						if matched {
 							log.Printf("[RSS] Found : %s Ch %g [%s]", series.Title, ch.Number, ch.Language)
 
-							_, err := e.Manager.AddTorrentFromURL(
+							err := e.Manager.AddTorrentFromURL(
 								release.Link,
 								getDownloadsPath(),
 								release.SeedTime,
 								release.Language,
 								series.ID,
 								parsedRelease,
+								release.InfoHash,
 							)
 							if err != nil {
 								log.Printf("[RSS] Failed to pass torrent to downloader client: %v", err)

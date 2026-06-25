@@ -78,7 +78,7 @@ func (q *QBittorrentClient) login() error {
 	return nil
 }
 
-func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease) (string, error) {
+func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease, infoHash string) error {
 	addURL := fmt.Sprintf("%s/api/v2/torrents/add", q.BaseURL)
 
 	categoryTarget := q.Cfg.Category
@@ -95,38 +95,19 @@ func (q *QBittorrentClient) AddTorrentFromURL(torrentURL string, savePath string
 
 	resp, err := q.Client.PostForm(addURL, data)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to add torrent, code: %d", resp.StatusCode)
+		return fmt.Errorf("failed to add torrent, code: %d", resp.StatusCode)
 	}
 
-	infoHash := ""
-	if strings.HasPrefix(torrentURL, "magnet:") {
-		if u, err := url.Parse(torrentURL); err == nil {
-			xt := u.Query().Get("xt")
-			if strings.HasPrefix(xt, "urn:btih:") {
-				infoHash = strings.ToLower(strings.TrimPrefix(xt, "urn:btih:"))
-			}
-		}
-	}
-
-	if infoHash == "" {
-		time.Sleep(150 * time.Millisecond)
-
-		downloads, err := q.GetActiveDownloads()
-		if err == nil && len(downloads) > 0 {
-			infoHash = downloads[len(downloads)-1].Hash
-		}
-	}
-
-	return infoHash, nil
+	return nil
 }
 
-func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease) (string, error) {
-	return q.AddTorrentFromURL(magnet, savePath, seedTime, language, seriesID, release)
+func (q *QBittorrentClient) AddTorrentFromMagnet(magnet string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease, infoHash string) error {
+	return q.AddTorrentFromURL(magnet, savePath, seedTime, language, seriesID, release, infoHash)
 }
 
 func (q *QBittorrentClient) GetActiveDownloads() ([]TorrentInfo, error) {

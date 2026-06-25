@@ -98,16 +98,16 @@ func (ls *LibraryScanner) ScanLibrary() error {
 		}
 
 		currentDirPath := filepath.Clean(filepath.Join(libraryRoot, dir.Name()))
-        var matchedSeries *models.Series
+		var matchedSeries *models.Series
 
-        for i := range allSeries {
-            dbPath := filepath.Clean(allSeries[i].Path)
-            
-            if dbPath == currentDirPath {
-                matchedSeries = &allSeries[i]
-                break
-            }
-        }
+		for i := range allSeries {
+			dbPath := filepath.Clean(allSeries[i].Path)
+
+			if dbPath == currentDirPath {
+				matchedSeries = &allSeries[i]
+				break
+			}
+		}
 
 		if matchedSeries == nil {
 			log.Printf("[Scanner] Found unrecognized folder: %s. Attempting auto-creation...", dir.Name())
@@ -198,16 +198,15 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 				continue
 			}
 
-			parsed, ok := indexer.ParseTorrentTitle(fileName)
+			cleanedName := cleanLooseFilename(fileName)
+
+			parsed, ok := indexer.ParseTorrentTitle(cleanedName)
 			if !ok {
 				continue
 			}
 
 			start := parsed.StartNum
-			end := parsed.StartNum
-			if parsed.Type == models.TypeRange {
-				end = parsed.EndNum
-			}
+			end := parsed.EndNum
 			currentPath := filepath.Join(subFolderPath, fileName)
 
 			if parsed.Type == models.TypeVolume {
@@ -223,6 +222,7 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 						if ch.Volume != nil && float64(*ch.Volume) == volNum && chLang == lang {
 							diskKey := fmt.Sprintf("%g_%s", ch.Number, lang)
 							foundOnDisk[diskKey] = true
+
 							if ch.Status != models.ChapterDownloaded {
 								ch.Status = models.ChapterDownloaded
 								ch.FilePath = &currentPath
@@ -318,12 +318,14 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 						Number:   num,
 						Status:   models.ChapterDownloaded,
 						FilePath: &currentPath,
+						Language: lang,
 					}
 
 					if err := ls.ChapterStore.Insert(&newCh); err != nil {
 						log.Printf("[Scanner Error] Failed insert Ch %g: %v", num, err)
 					} else {
 						log.Printf("[Scanner] Created missing row for Ch %g", num)
+						chapterMap[diskKey] = &newCh
 					}
 				} else {
 					if ch.Status != models.ChapterDownloaded {
@@ -351,6 +353,15 @@ func (ls *LibraryScanner) scanSeriesFolder(series *models.Series, folderPath str
 	}
 
 	return nil
+}
+
+var looseVolumeLetterRegex = regexp.MustCompile(`(?i)\b(v\d+)[a-z](-\d+)?\b`)
+
+func cleanLooseFilename(filename string) string {
+	if looseVolumeLetterRegex.MatchString(filename) {
+		filename = looseVolumeLetterRegex.ReplaceAllString(filename, "$1$2")
+	}
+	return filename
 }
 
 // Matches: "- p086-087", "- p000", "_p050", " page 12", " p.012"

@@ -16,8 +16,8 @@ type TorrentInfo struct {
 }
 
 type DownloadClient interface {
-	AddTorrentFromMagnet(magnet string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease) (string, error)
-	AddTorrentFromURL(url string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease) (string, error)
+	AddTorrentFromMagnet(magnet string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease, infoHash string) error
+	AddTorrentFromURL(url string, savePath string, seedTime int, language string, seriesID int64, release indexer.ParsedRelease, infoHash string) error
 	GetActiveDownloads() ([]TorrentInfo, error)
 	MarkAsImported(hash string) error
 }

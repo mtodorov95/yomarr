@@ -24,7 +24,9 @@ type SeriesStore interface {
 	Count() (int64, error)
 }
 
-type SQLiteSeriesStore struct{}
+type SQLiteSeriesStore struct{
+	DB *sql.DB
+}
 
 func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 	query := `
@@ -42,7 +44,7 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
         ORDER BY title ASC
     `
 
-	rows, err := DB.Query(query)
+	rows, err := store.DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +96,7 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
         WHERE id = ?
     `
 
-	err := DB.QueryRow(query, id).Scan(
+	err := store.DB.QueryRow(query, id).Scan(
 		&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
 		&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &s.Artist, &s.Year,
 		&genresStr, &s.Description, &s.LastChapter, &s.LastVolume, &s.DownloadedCount,
@@ -120,7 +122,7 @@ func (store *SQLiteSeriesStore) GetAllMonitored() ([]models.Series, error) {
         WHERE status != ?
     `
 
-	rows, err := DB.Query(query, models.SeriesUnmonitored)
+	rows, err := store.DB.Query(query, models.SeriesUnmonitored)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +158,7 @@ func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	res, err := DB.Exec(
+	res, err := store.DB.Exec(
 		query,
 		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status,
 		s.TotalChapters, s.Thumbnail, string(histJSON), s.Author, s.Artist, s.Year,
@@ -183,7 +185,7 @@ func (store *SQLiteSeriesStore) Update(s *models.Series) error {
 		WHERE id = ?
 	`
 
-	_, err := DB.Exec(
+	_, err := store.DB.Exec(
 		query,
 		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status,
 		s.TotalChapters, s.Thumbnail, string(histJSON), s.Author, s.Artist, s.Year,
@@ -194,12 +196,12 @@ func (store *SQLiteSeriesStore) Update(s *models.Series) error {
 }
 
 func (store *SQLiteSeriesStore) Delete(id int64) error {
-	_, err := DB.Exec("DELETE FROM series WHERE id = ?", id)
+	_, err := store.DB.Exec("DELETE FROM series WHERE id = ?", id)
 	return err
 }
 
-func (s *SQLiteSeriesStore) Count() (int64, error) {
+func (store *SQLiteSeriesStore) Count() (int64, error) {
 	var count int64
-	err := DB.QueryRow("SELECT COUNT(*) FROM series").Scan(&count)
+	err := store.DB.QueryRow("SELECT COUNT(*) FROM series").Scan(&count)
 	return count, err
 }

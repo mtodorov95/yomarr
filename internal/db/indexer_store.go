@@ -1,6 +1,10 @@
 package db
 
-import "github.com/mtodorov95/yomarr/internal/models"
+import (
+	"database/sql"
+
+	"github.com/mtodorov95/yomarr/internal/models"
+)
 
 type IndexerStore interface {
 	GetAll() ([]models.Indexer, error)
@@ -9,10 +13,12 @@ type IndexerStore interface {
 	Delete(id int64) error
 }
 
-type SQLiteIndexerStore struct{}
+type SQLiteIndexerStore struct{
+	DB *sql.DB
+}
 
 func (store *SQLiteIndexerStore) GetAll() ([]models.Indexer, error) {
-	rows, err := DB.Query("SELECT id, name, url, api_key, priority, enable_rss, enable_search, additional_parameters, minimum_seeders, seed_time FROM indexers ORDER BY priority DESC")
+	rows, err := store.DB.Query("SELECT id, name, url, api_key, priority, enable_rss, enable_search, additional_parameters, minimum_seeders, seed_time FROM indexers ORDER BY priority DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +36,7 @@ func (store *SQLiteIndexerStore) GetAll() ([]models.Indexer, error) {
 }
 
 func (store *SQLiteIndexerStore) Insert(i *models.Indexer) error {
-	res, err := DB.Exec(
+	res, err := store.DB.Exec(
 		"INSERT INTO indexers (name, url, api_key, priority, enable_rss, enable_search, additional_parameters, minimum_seeders, seed_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		i.Name, i.URL, i.APIKey, i.Priority, i.EnableRSS, i.EnableSearch, i.AdditionalParameters, i.MinimumSeeders, i.SeedTime,
 	)
@@ -42,7 +48,7 @@ func (store *SQLiteIndexerStore) Insert(i *models.Indexer) error {
 }
 
 func (store *SQLiteIndexerStore) Update(i *models.Indexer) error {
-	_, err := DB.Exec(
+	_, err := store.DB.Exec(
 		"UPDATE indexers SET name=?, url=?, api_key=?, priority=?, enable_rss=?, enable_search=?, additional_parameters=?, minimum_seeders=?, seed_time=? WHERE id=?",
 		i.Name, i.URL, i.APIKey, i.Priority, i.EnableRSS, i.EnableSearch, i.AdditionalParameters, i.MinimumSeeders, i.SeedTime, i.ID,
 	)
@@ -50,6 +56,6 @@ func (store *SQLiteIndexerStore) Update(i *models.Indexer) error {
 }
 
 func (store *SQLiteIndexerStore) Delete(id int64) error {
-	_, err := DB.Exec("DELETE FROM indexers WHERE id = ?", id)
+	_, err := store.DB.Exec("DELETE FROM indexers WHERE id = ?", id)
 	return err
 }

@@ -6,25 +6,23 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var DB *sql.DB
-
-func Init(path string) {
-	var err error
-	DB, err = sql.Open("sqlite", path)
+func Init(path string) *sql.DB {
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// WAL for concurrency
-	_, err = DB.Exec("PRAGMA journal_mode=WAL;")
+	_, err = db.Exec("PRAGMA journal_mode=WAL;")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	createTables()
+	createTables(db)
+	return db
 }
 
-func createTables() {
+func createTables(DB *sql.DB) {
 	tables := []string{
 		`CREATE TABLE IF NOT EXISTS series (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

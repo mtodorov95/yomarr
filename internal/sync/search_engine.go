@@ -177,13 +177,14 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 			log.Printf("[Search] Found optimal release for %s Ch %g [%s] -> %s (Seeds: %d)",
 				series.Title, ch.Number, bestTorrent.Language, bestTorrent.Title, bestTorrent.Seeders)
 
-			_, err = e.Downloader.AddTorrentFromURL(
+			err = e.Downloader.AddTorrentFromURL(
 				bestTorrent.Link,
 				targetPath,
 				bestTorrent.SeedTime,
 				bestTorrent.Language,
 				series.ID,
 				bestParsed,
+				bestTorrent.InfoHash,
 			)
 			if err != nil {
 				log.Printf("[Search] Failed to dispatch torrent to client: %v", err)

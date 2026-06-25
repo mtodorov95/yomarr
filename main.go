@@ -35,10 +35,14 @@ func main() {
 	}
 
 	// DB
-	db.Init(path)
+	database := db.Init(path)
+	defer database.Close()
 
-	chapterStore := &db.SQLiteChapterStore{}
-	seriesStore := &db.SQLiteSeriesStore{}
+	chapterStore := &db.SQLiteChapterStore{DB: database}
+	seriesStore := &db.SQLiteSeriesStore{DB: database}
+	indexerStore := &db.SQLiteIndexerStore{DB: database}
+	clientStore := &db.SQLiteDownloadClientStore{DB: database}
+	queueStore := &db.SQLiteQueueStore{DB: database}
 	// Server
 	mux := http.NewServeMux()
 	client := &http.Client{}
@@ -46,12 +50,6 @@ func main() {
 	anilist := &metadata.AnilistProvider{Client: client}
 	mangadex := &metadata.MangaDexProvider{Client: client}
 	aggregator := metadata.NewAggregatorMetadataProvider(mangadex, anilist)
-	// Indexer
-	indexerStore := &db.SQLiteIndexerStore{}
-	// Download
-	clientStore := &db.SQLiteDownloadClientStore{}
-	// Queue
-	queueStore := &db.SQLiteQueueStore{}
 	eventHub := sync.NewEventHub()
 	// Sync
 	manager := sync.NewDynamicManager(indexerStore, clientStore, queueStore)
@@ -90,13 +88,13 @@ func main() {
 
 	mux.HandleFunc("/api/series", seriesHandler.HandleSeries)
 
-	chapterHandler := &api.ChapterHandler{Store: &db.SQLiteChapterStore{}}
+	chapterHandler := &api.ChapterHandler{Store: chapterStore}
 	mux.HandleFunc("/api/chapters", chapterHandler.HandleChapters)
 
-	indexerHandler := &api.IndexerHandler{Store: &db.SQLiteIndexerStore{}}
+	indexerHandler := &api.IndexerHandler{Store: indexerStore}
 	mux.HandleFunc("/api/indexers", indexerHandler.HandleIndexers)
 
-	downloadClientHandler := &api.DownloadClientHandler{Store: &db.SQLiteDownloadClientStore{}}
+	downloadClientHandler := &api.DownloadClientHandler{Store: clientStore}
 	mux.HandleFunc("/api/download-clients", downloadClientHandler.HandleDownloadClients)
 
 	searchHandler := api.NewSearchHandler(searchEngine)

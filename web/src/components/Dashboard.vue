@@ -94,7 +94,7 @@ onMounted(fetchSeries)
         <ActionBar
             :scanning="scanning" 
             :loading="loading"
-            @update-library="runLibraryScan"
+            @scan-library="runLibraryScan"
         />
 
         <div class="content-panel">

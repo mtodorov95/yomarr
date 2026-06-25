@@ -1,6 +1,10 @@
 package db
 
-import "github.com/mtodorov95/yomarr/internal/models"
+import (
+	"database/sql"
+
+	"github.com/mtodorov95/yomarr/internal/models"
+)
 
 type ChapterStore interface {
 	GetBySeriesId(seriesId int64) ([]models.Chapters, error)
@@ -11,10 +15,12 @@ type ChapterStore interface {
 	CountByStatus(status string) (int64, error)
 }
 
-type SQLiteChapterStore struct{}
+type SQLiteChapterStore struct{
+	DB *sql.DB
+}
 
 func (store *SQLiteChapterStore) GetBySeriesId(seriesId int64) ([]models.Chapters, error) {
-	rows, err := DB.Query(
+	rows, err := store.DB.Query(
 		"SELECT id, series_id, number, volume, file_path, status, release_date, language FROM chapters WHERE series_id = ? ORDER BY number ASC",
 		seriesId,
 	)
@@ -37,7 +43,7 @@ func (store *SQLiteChapterStore) GetBySeriesId(seriesId int64) ([]models.Chapter
 }
 
 func (store *SQLiteChapterStore) Insert(c *models.Chapters) error {
-	res, err := DB.Exec(
+	res, err := store.DB.Exec(
 		"INSERT INTO chapters (series_id, number, volume, file_path, status, release_date, language) VALUES (?,?,?,?,?,?,?)",
 		c.SeriesID, c.Number, c.Volume, c.FilePath, c.Status, c.ReleaseDate, c.Language,
 	)
@@ -55,7 +61,7 @@ func (store *SQLiteChapterStore) GetMissingBySeriesID(seriesID int64) ([]*models
 		WHERE series_id = ? AND status = 'Missing'
 		ORDER BY number ASC`
 
-	rows, err := DB.Query(query, seriesID)
+	rows, err := store.DB.Query(query, seriesID)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +94,7 @@ func (store *SQLiteChapterStore) GetByStatus(status string) ([]models.Chapters, 
 		WHERE status = ?
 		ORDER BY number ASC`
 
-	rows, err := DB.Query(query, status)
+	rows, err := store.DB.Query(query, status)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +126,7 @@ func (store *SQLiteChapterStore) Update(c *models.Chapters) error {
 		SET volume = ?, status = ?, language = ?, file_path = ?
 		WHERE id = ?
 	`
-	_, err := DB.Exec(
+	_, err := store.DB.Exec(
 		query, 
 		c.Volume, 
 		c.Status, 
@@ -131,8 +137,8 @@ func (store *SQLiteChapterStore) Update(c *models.Chapters) error {
 	return err
 }
 
-func (s *SQLiteChapterStore) CountByStatus(status string) (int64, error) {
+func (store *SQLiteChapterStore) CountByStatus(status string) (int64, error) {
 	var count int64
-	err := DB.QueryRow("SELECT COUNT(*) FROM chapters WHERE status = ?", status).Scan(&count)
+	err := store.DB.QueryRow("SELECT COUNT(*) FROM chapters WHERE status = ?", status).Scan(&count)
 	return count, err
 }
