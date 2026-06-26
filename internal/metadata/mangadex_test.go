@@ -17,8 +17,8 @@ func TestMapMDStatus(t *testing.T) {
 		{"ongoing", models.SeriesOngoing},
 		{"hiatus", models.SeriesHiatus},
 		{"completed", models.SeriesCompleted},
-		{"cancelled", models.SeriesUnmonitored},
-		{"unknown_garbage", models.SeriesOngoing},
+		{"cancelled", models.SeriesCancelled},
+		{"unknown_garbage", models.SeriesUnknown},
 	}
 
 	for _, tc := range tests {

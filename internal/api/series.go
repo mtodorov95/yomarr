@@ -125,6 +125,8 @@ func (h *SeriesHandler) create(w http.ResponseWriter, r *http.Request) {
 			Title:         req.Title,
 			AltTitles:     req.AltTitles,
 			Status:        models.SeriesStatus(req.Status),
+			Downloading:   false,
+			Monitored:     true,
 			Path:          req.Path,
 			MangadexID:    db.ToPtr(req.MangadexId),
 			AnilistID:     db.ToPtr(req.AnilistID),

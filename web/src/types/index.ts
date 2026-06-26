@@ -1,4 +1,4 @@
-export type SeriesStatus = 'Ongoing' | 'Completed' | 'Unmonitored';
+export type SeriesStatus = 'Ongoing' | 'Completed' | 'Hiatus' | 'Cancelled' | 'Unknown';
 
 export type ChapterStatus = 'Missing' | 'Downloading' | 'Downloaded' | 'Ignored';
 
@@ -9,6 +9,8 @@ export interface Series {
     title: string;
     alt_titles: Record<string, string[]>;
     status: SeriesStatus;
+    monitored: boolean;
+    downloading: boolean;
     path: string;
     localPath?: string;
     total_chapters?: number;

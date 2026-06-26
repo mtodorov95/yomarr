@@ -192,7 +192,10 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 		if torrent.Progress != 1.0 {
 			if queueItem.Status != models.QueueDownloading {
 				_ = m.QueueStore.UpdateStatus(queueItem.TorrentHash, models.QueueDownloading, nil)
-				series.Status = models.SeriesDownloading
+			}
+
+			if !series.Downloading {
+				series.Downloading = true 
 				if err := m.SeriesStore.Update(series); err != nil {
 					log.Printf("[Monitor Error] Failed to update status to downloading for series %d: %v", series.ID, err)
 				}
@@ -275,7 +278,7 @@ func (m *DownloadMonitor) CheckActiveDownloads() error {
 		}
 
 		if !hasMoreDownloads {
-			series.Status = models.SeriesOngoing
+			series.Downloading = false 
 			if err := m.SeriesStore.Update(series); err != nil {
 				log.Printf("[Monitor Error] Failed to reset status for series %d: %v", series.ID, err)
 			}

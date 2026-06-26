@@ -59,8 +59,15 @@ const truncatedTitle = computed(() => {
 </script>
 
 <template>
-    <div @click="emit('select', series)" class="series-poster-card">
+    <div @click="emit('select', series)" class="series-poster-card" :class="{ 'is-unmonitored': !series.monitored }">
         <div class="poster-frame">
+            <div 
+                class="monitoring-ribbon" 
+                :class="series.monitored ? 'monitored' : 'unmonitored'"
+                :title="series.monitored ? 'Monitored' : 'Unmonitored'"
+            >
+            </div>
+
             <img 
                 v-if="series.thumbnail" 
                 :src="getImageUrl()" 
@@ -101,14 +108,12 @@ const truncatedTitle = computed(() => {
                 <div class="progress-track-bg"></div>
                 <div 
                     class="progress-fill-bar"
-                    :class="{ 
+                    :class="series.downloading ? 'status-downloading' : { 
                         'status-ongoing': series.status?.toLowerCase() === 'ongoing',
                         'status-completed': series.status?.toLowerCase() === 'completed',
-                        'status-hiatus': series.status?.toLowerCase() === 'hiatus',
-                        'status-downloading': series.status?.toLowerCase() === 'downloading',
-                        'status-unmonitored': series.status?.toLowerCase() === 'unmonitored'
+                        'status-hiatus': series.status?.toLowerCase() === 'hiatus'
                     }"
-                    :style="{ width: getCompletionPercentage() + '%' }"
+                    :style="{ width: series.downloading ? '100%' : getCompletionPercentage() + '%' }"
                 ></div>
                     </div>
                 </div>
@@ -126,6 +131,14 @@ const truncatedTitle = computed(() => {
     cursor: pointer;
     background-color: transparent;
     transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.series-poster-card.is-unmonitored {
+    opacity: 0.75;
+}
+
+.series-poster-card.is-unmonitored:hover {
+    opacity: 1;
 }
 
 .series-poster-card:hover {
@@ -147,6 +160,28 @@ const truncatedTitle = computed(() => {
 .series-poster-card:hover .poster-frame {
     border-color: #475569;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+.monitoring-ribbon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom-right-radius: 0.375rem;
+    box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.monitoring-ribbon.monitored {
+    background-color: #0ea5e9;
+}
+
+.monitoring-ribbon.unmonitored {
+    background-color: #7f1d1d;
 }
 
 .poster-image {

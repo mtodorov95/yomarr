@@ -133,10 +133,12 @@ func (ls *LibraryScanner) ScanLibrary() error {
 				folderPath := filepath.Join(libraryRoot, dir.Name())
 
 				newSeries := models.Series{
-					Title:  cleanTitle,
-					Year:   seriesYear,
-					Status: models.SeriesUnmonitored,
-					Path:   folderPath,
+					Title:       cleanTitle,
+					Year:        seriesYear,
+					Status:      models.SeriesUnknown,
+					Downloading: false,
+					Monitored:   false,
+					Path:        folderPath,
 				}
 
 				if err := ls.SeriesStore.Insert(&newSeries); err != nil {
@@ -555,7 +557,7 @@ func (ls *LibraryScanner) RefreshSeriesMetadata(id int64) (*models.Series, error
 
 	if s.MangadexID != nil && *s.MangadexID != "" {
 		if err := ls.SyncEngine.SyncChapters(s.ID, *s.MangadexID); err != nil {
-			log.Printf("[Metadata Service Warning] Non-fatal chapter tracking sync error for %s: %v", s.Title, err)
+			log.Printf("[Metadata Warning] Non-fatal chapter tracking sync error for %s: %v", s.Title, err)
 		}
 	}
 

@@ -45,9 +45,9 @@ func mapAnilistStatus(apiStatus string) models.SeriesStatus {
 	case "RELEASING", "HIATUS":
 		return models.SeriesOngoing
 	case "NOT_YET_RELEASED", "CANCELLED":
-		return models.SeriesUnmonitored
+		return models.SeriesCancelled
 	default:
-		return models.SeriesUnmonitored
+		return models.SeriesUnknown
 	}
 }
 

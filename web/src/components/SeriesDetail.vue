@@ -153,10 +153,8 @@ async function toggleMonitorStatus() {
     if (!series.value || updatingStatus.value) return
 
     updatingStatus.value = true
-    const previousStatus = series.value.status
-
-    const isCurrentlyUnmonitored = previousStatus?.toLowerCase() === 'unmonitored'
-    series.value.status = isCurrentlyUnmonitored ? 'Ongoing' : 'Unmonitored'
+    const previousStatus = series.value.monitored
+    series.value.monitored = !previousStatus
 
     try {
         const res = await fetch('/api/series', {
@@ -167,7 +165,7 @@ async function toggleMonitorStatus() {
 
         if (!res.ok) throw new Error('Status modification update rejected by database layer')
 
-        if (series.value.status === 'Unmonitored') {
+        if (!series.value.monitored) {
             toast.info(`Stopped tracking automation loops for: ${series.value.title}`)
         } else {
             toast.success(`Resumed missing chapter tracking automation for: ${series.value.title}`)
@@ -176,7 +174,7 @@ async function toggleMonitorStatus() {
         console.error(e)
         toast.error('Failed to update monitoring status')
         if (series.value) {
-            series.value.status = previousStatus
+            series.value.monitored = previousStatus
         }
     } finally {
         updatingStatus.value = false
@@ -232,11 +230,11 @@ onMounted(loadPageData)
                     <div class="series-identity-block">
                         <div class="series-headline-row">
                             <button @click="toggleMonitorStatus" class="monitor-toggle-btn"
-                                :class="{ 'is-unmonitored': series.status?.toLowerCase() === 'unmonitored' }"
+                                :class="{ 'is-unmonitored': !series.monitored }"
                                 :disabled="updatingStatus"
-                                :title="series.status?.toLowerCase() === 'unmonitored' ? 'Click to Start Monitoring' : 'Click to Stop Monitoring'"
+                                :title="!series.monitored ? 'Click to Start Monitoring' : 'Click to Stop Monitoring'"
                                 aria-label="Toggle series monitoring tracking status state">
-                                <svg v-if="series.status?.toLowerCase() !== 'unmonitored'"
+                                <svg v-if="series.monitored"
                                     xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
                                     class="monitor-icon">
                                     <path
@@ -570,7 +568,7 @@ onMounted(loadPageData)
     border: 1px solid rgba(194, 65, 12, 0.4);
 }
 
-.status-pill.unmonitored {
+.status-pill.cancelled {
     color: #f87171;
     background-color: rgba(127, 29, 29, 0.3);
     border: 1px solid rgba(185, 28, 28, 0.4);

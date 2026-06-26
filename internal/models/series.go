@@ -14,6 +14,8 @@ type Series struct {
 	AltTitles        map[string][]string `json:"alt_titles"`
 	Path             string              `json:"path"`
 	Status           SeriesStatus        `json:"status"`
+	Monitored        bool                `json:"monitored"`
+    Downloading      bool                `json:"downloading"`
 	TotalChapters    int                 `json:"total_chapters"`
 	Thumbnail        string              `json:"thumbnail"`
 	HistoricalCovers []VolumeCover       `json:"historical_covers"`

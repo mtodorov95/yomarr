@@ -173,9 +173,9 @@ func mapMDStatus(status string) models.SeriesStatus {
 	case "completed":
 		return models.SeriesCompleted
 	case "cancelled":
-		return models.SeriesUnmonitored
+		return models.SeriesCancelled
 	default:
-		return models.SeriesOngoing
+		return models.SeriesUnknown
 	}
 }
 
@@ -297,6 +297,8 @@ func (p *MangaDexProvider) Search(query string) ([]models.Series, error) {
 			Title:            getMDTitle(item.Attributes.Title, item.Attributes.AltTitles),
 			AltTitles:        fallbacks,
 			Status:           mapMDStatus(item.Attributes.Status),
+			Downloading:      false,
+			Monitored:        true,
 			AnilistID:        alIDPtr,
 			Thumbnail:        primaryCover,
 			HistoricalCovers: []models.VolumeCover{},
@@ -361,6 +363,8 @@ func (p *MangaDexProvider) GetDetails(id string) (*models.Series, error) {
 		AltTitles:        fallbacks,
 		Title:            getMDTitle(res.Data.Attributes.Title, res.Data.Attributes.AltTitles),
 		Status:           mapMDStatus(res.Data.Attributes.Status),
+		Downloading:      false,
+		Monitored:        true,
 		Thumbnail:        thumbnail,
 		HistoricalCovers: historical,
 		Author:           getMDAuthor(res.Data.Relationships),

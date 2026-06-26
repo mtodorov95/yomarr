@@ -30,19 +30,19 @@ type SQLiteSeriesStore struct{
 
 func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 	query := `
-        SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
-               total_chapters, thumbnail, historical_covers, author, artist, year, 
-               genres, description, last_chapter, last_volume,
-               (
-                   SELECT COUNT(DISTINCT c.number) 
-                   FROM chapters c 
-                   WHERE c.series_id = series.id 
-                     AND c.file_path IS NOT NULL 
-                     AND c.file_path != ''
-               ) AS downloaded_count
-        FROM series
-        ORDER BY title ASC
-    `
+		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, monitored, downloading, 
+		       total_chapters, thumbnail, historical_covers, author, artist, year, 
+		       genres, description, last_chapter, last_volume,
+		       (
+		           SELECT COUNT(DISTINCT c.number) 
+		           FROM chapters c 
+		           WHERE c.series_id = series.id 
+		             AND c.file_path IS NOT NULL 
+		             AND c.file_path != ''
+		       ) AS downloaded_count
+		FROM series
+		ORDER BY title ASC
+	`
 
 	rows, err := store.DB.Query(query)
 	if err != nil {
@@ -59,7 +59,7 @@ func (store *SQLiteSeriesStore) GetAll() ([]models.Series, error) {
 		var genresStr string
 
 		err := rows.Scan(
-			&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
+			&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status, &s.Monitored, &s.Downloading,
 			&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &s.Artist, &s.Year,
 			&genresStr, &s.Description, &s.LastChapter, &s.LastVolume, &s.DownloadedCount,
 		)
@@ -82,22 +82,22 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 	var genresStr string
 
 	query := `
-        SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, 
-               total_chapters, thumbnail, historical_covers, author, artist, year, 
-               genres, description, last_chapter, last_volume,
-               (
-                   SELECT COUNT(DISTINCT c.number) 
-                   FROM chapters c 
-                   WHERE c.series_id = series.id 
-                     AND c.file_path IS NOT NULL 
-                     AND c.file_path != ''
-               ) AS downloaded_count
-        FROM series 
-        WHERE id = ?
-    `
+		SELECT id, anilist_id, mangadex_id, title, alt_titles, path, status, monitored, downloading, 
+		       total_chapters, thumbnail, historical_covers, author, artist, year, 
+		       genres, description, last_chapter, last_volume,
+		       (
+		           SELECT COUNT(DISTINCT c.number) 
+		           FROM chapters c 
+		           WHERE c.series_id = series.id 
+		             AND c.file_path IS NOT NULL 
+		             AND c.file_path != ''
+		       ) AS downloaded_count
+		FROM series 
+		WHERE id = ?
+	`
 
 	err := store.DB.QueryRow(query, id).Scan(
-		&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status,
+		&s.ID, &s.AnilistID, &s.MangadexID, &s.Title, &altStr, &s.Path, &s.Status, &s.Monitored, &s.Downloading,
 		&s.TotalChapters, &s.Thumbnail, &histStr, &s.Author, &s.Artist, &s.Year,
 		&genresStr, &s.Description, &s.LastChapter, &s.LastVolume, &s.DownloadedCount,
 	)
@@ -117,12 +117,12 @@ func (store *SQLiteSeriesStore) GetById(id int64) (*models.Series, error) {
 
 func (store *SQLiteSeriesStore) GetAllMonitored() ([]models.Series, error) {
 	query := `
-		SELECT id, title, alt_titles, status 
-        FROM series
-        WHERE status != ?
-    `
+		SELECT id, title, alt_titles, status, monitored, downloading 
+		FROM series
+		WHERE monitored = 1
+	`
 
-	rows, err := store.DB.Query(query, models.SeriesUnmonitored)
+	rows, err := store.DB.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (store *SQLiteSeriesStore) GetAllMonitored() ([]models.Series, error) {
 		var s models.Series
 		var altStr string
 
-		err := rows.Scan(&s.ID, &s.Title, &altStr, &s.Status)
+		err := rows.Scan(&s.ID, &s.Title, &altStr, &s.Status, &s.Monitored, &s.Downloading)
 		if err != nil {
 			return nil, err
 		}
@@ -152,15 +152,15 @@ func (store *SQLiteSeriesStore) Insert(s *models.Series) error {
 
 	query := `
 		INSERT INTO series (
-			anilist_id, mangadex_id, title, alt_titles, path, status, 
+			anilist_id, mangadex_id, title, alt_titles, path, status, monitored, downloading, 
 			total_chapters, thumbnail, historical_covers, author, artist, year, 
 			genres, description, last_chapter, last_volume
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	res, err := store.DB.Exec(
 		query,
-		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status,
+		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status, s.Monitored, s.Downloading,
 		s.TotalChapters, s.Thumbnail, string(histJSON), s.Author, s.Artist, s.Year,
 		string(genresJSON), s.Description, s.LastChapter, s.LastVolume,
 	)
@@ -179,7 +179,7 @@ func (store *SQLiteSeriesStore) Update(s *models.Series) error {
 
 	query := `
 		UPDATE series 
-			SET anilist_id = ?, mangadex_id = ?, title = ?, alt_titles = ?, path = ?, status = ?, 
+			SET anilist_id = ?, mangadex_id = ?, title = ?, alt_titles = ?, path = ?, status = ?, monitored = ?, downloading = ?, 
 			    total_chapters = ?, thumbnail = ?, historical_covers = ?, author = ?, artist = ?, year = ?, 
 			    genres = ?, description = ?, last_chapter = ?, last_volume = ?
 		WHERE id = ?
@@ -187,7 +187,7 @@ func (store *SQLiteSeriesStore) Update(s *models.Series) error {
 
 	_, err := store.DB.Exec(
 		query,
-		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status,
+		s.AnilistID, s.MangadexID, s.Title, string(altJSON), s.Path, s.Status, s.Monitored, s.Downloading,
 		s.TotalChapters, s.Thumbnail, string(histJSON), s.Author, s.Artist, s.Year,
 		string(genresJSON), s.Description, s.LastChapter, s.LastVolume, s.ID,
 	)

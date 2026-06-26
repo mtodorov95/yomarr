@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import type { Series } from '../types'
 import SeriesList from './SeriesList.vue'
 import { useRouter } from 'vue-router'
@@ -14,9 +14,17 @@ const toast = useToast()
 const series = ref<Series[]>([])
 const loading = ref(true)
 const scanning = ref(false)
+const searchFilter = ref('')
 
 const isModalOpen = ref(false)
 const seriesToDelete = ref<number | null>(null)
+
+const filteredSeries = computed(() => {
+    const query = searchFilter.value.trim().toLowerCase()
+    if (!query) return series.value
+    
+    return series.value.filter(s => s.title.toLowerCase().includes(query))
+})
 
 async function fetchSeries() {
     loading.value = true
@@ -92,6 +100,7 @@ onMounted(fetchSeries)
 <template>
     <div class="dashboard-wrapper">
         <ActionBar
+            v-model="searchFilter"
             :scanning="scanning" 
             :loading="loading"
             @scan-library="runLibraryScan"
@@ -105,16 +114,16 @@ onMounted(fetchSeries)
 
             <template v-else>
                 <SeriesList 
-                    v-if="series.length > 0" 
-                    :seriesList="series" 
+                    v-if="filteredSeries.length > 0" 
+                    :seriesList="filteredSeries" 
                     @delete="triggerDeleteConfirmation" 
                     @select="handleSelect" 
                 />
                 <div v-else class="info-message empty-state">
-                    <span class="empty-icon">📂</span>
-                    <h3>Your Library is Completely Empty</h3>
-                    <p>Get started by running a manual index scan or adding new track targets.</p>
-                    <RouterLink to="/add" class="empty-cta">Add a Title Target</RouterLink>
+                    <span class="empty-icon">{{ series.length > 0 ? '🔍' : '📂' }}</span>
+                    <h3>{{ series.length > 0 ? 'No Matching Results Found' : 'Your Library is Completely Empty' }}</h3>
+                    <p>{{ series.length > 0 ? 'Double check your spelling.' : 'Get started by running a manual index scan or adding new track targets.' }}</p>
+                    <RouterLink v-if="series.length === 0" to="/add" class="empty-cta">Add a Title Target</RouterLink>
                 </div>
             </template>
         </div>

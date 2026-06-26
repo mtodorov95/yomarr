@@ -7,10 +7,23 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'scan-library'): void
 }>()
+
+const searchQuery = defineModel<string>({ default: '' })
 </script>
 
 <template>
   <header class="action-bar">
+    <div class="search-group">
+      <span class="search-icon">🔍</span>
+      <input 
+        v-model="searchQuery"
+        type="text" 
+        placeholder="Search" 
+        class="search-input"
+        :disabled="loading"
+      />
+    </div>
+
     <div class="action-group">
       <button 
         @click="emit('scan-library')" 
@@ -21,7 +34,6 @@ const emit = defineEmits<{
         <span class="btn-text">{{ scanning ? 'Scanning...' : 'Scan Library' }}</span>
       </button>
     </div>
-    
   </header>
 </template>
 
@@ -35,6 +47,7 @@ const emit = defineEmits<{
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  gap: 1rem;
 }
 
 .action-group {
@@ -74,6 +87,44 @@ const emit = defineEmits<{
 
 .action-item-btn:disabled {
   opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.search-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 280px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  font-size: 0.85rem;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.search-input {
+  width: 100%;
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  border-radius: 0.375rem;
+  padding: 0.45rem 0.75rem 0.45rem 2.2rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.search-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.search-input:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 </style>

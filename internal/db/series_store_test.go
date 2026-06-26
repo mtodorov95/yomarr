@@ -7,10 +7,10 @@ import (
 )
 
 func TestSeriesStore(t *testing.T) {
-	Init(":memory:")
-	defer DB.Close()
+	testDB := Init(":memory:")
+	defer testDB.Close()
 
-	store := &SQLiteSeriesStore{}
+	store := &SQLiteSeriesStore{DB: testDB}
 
 	t.Run("InsertAndGet", func(t *testing.T) {
 		s := &models.Series{

@@ -74,7 +74,7 @@ func (e *SearchEngine) FindMissingChapters(seriesID int64) error {
 		return err
 	}
 
-	if series.Status == models.SeriesUnmonitored {
+	if !series.Monitored {
 		log.Printf("[Sync] Skipping search. Series '%s' is explicitly Unmonitored.", series.Title)
 		return nil
 	}

@@ -19,6 +19,7 @@ func Init(path string) *sql.DB {
 	}
 
 	createTables(db)
+	runMigrations(db)
 	return db
 }
 
@@ -32,6 +33,8 @@ func createTables(DB *sql.DB) {
 			alt_titles TEXT DEFAULT '[]',
 			path TEXT NOT NULL,
 			status TEXT,
+			monitored INTEGER DEFAULT 1,
+            downloading INTEGER DEFAULT 0,
 			total_chapters INTEGER DEFAULT 0,
 			thumbnail TEXT DEFAULT '',
 			historical_covers TEXT DEFAULT '[]',
@@ -97,4 +100,16 @@ func createTables(DB *sql.DB) {
 			log.Fatalf("[Database] Initialization failed while executing block: %v\nError details: %v", tableSchema, err)
 		}
 	}
+}
+
+func runMigrations(db *sql.DB) {
+    _, err := db.Exec(`ALTER TABLE series ADD COLUMN monitored INTEGER DEFAULT 1;`)
+    if err != nil {
+        log.Printf("[Migration] Note: monitored column might already exist: %v", err)
+    }
+
+    _, err = db.Exec(`ALTER TABLE series ADD COLUMN downloading INTEGER DEFAULT 0;`)
+    if err != nil {
+        log.Printf("[Migration] Note: downloading column might already exist: %v", err)
+    }
 }

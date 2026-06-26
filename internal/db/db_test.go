@@ -1,33 +1,39 @@
 package db
 
 import (
+	"database/sql"
 	"os"
 	"testing"
 )
 
 func TestInit(t *testing.T) {
 	tmpFile := "test_yomarr.db"
+	
+	var testDB *sql.DB
+
 	defer func() {
-		if DB != nil {
-			DB.Close()
+		if testDB != nil {
+			testDB.Close()
 		}
 		os.Remove(tmpFile)
 		os.Remove(tmpFile + "-shm")
 		os.Remove(tmpFile + "-wal")
 	}()
 
-	Init(tmpFile)
-	if DB == nil {
+	testDB = Init(tmpFile)
+	if testDB == nil {
 		t.Fatal("DB handle is nil")
 	}
 
-	rows, err := DB.Query("SELECT name FROM sqlite_master WHERE type='table' AND name='series';")
+	runMigrations(testDB)
+
+	rows, err := testDB.Query("SELECT name FROM sqlite_master WHERE type='table' AND name='series';")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		t.Error("Table 'series' not created")
+		t.Error("Table 'series' was not properly created")
 	}
 }

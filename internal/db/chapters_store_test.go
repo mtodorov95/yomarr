@@ -7,10 +7,10 @@ import (
 )
 
 func TestChapterStore(t *testing.T) {
-	Init(":memory:")
-	defer DB.Close()
+	testDB := Init(":memory:")
+	defer testDB.Close()
 
-	store := &SQLiteChapterStore{}
+	store := &SQLiteChapterStore{DB: testDB}
 	
 	t.Run("InsertAndGetBySeries", func(t *testing.T) {
 		vol := 1
