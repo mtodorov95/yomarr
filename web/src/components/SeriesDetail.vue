@@ -193,9 +193,6 @@ onMounted(loadPageData)
         <div v-else-if="!series" class="empty-state">
             <p class="empty-title">Series Record Hidden</p>
             <p class="empty-subtitle">The backend database failed to return a match for this ID reference.</p>
-            <RouterLink to="/" class="back-button-link" style="margin-top: 1rem;">
-                Back to Library
-            </RouterLink>
         </div>
 
         <template v-else>
@@ -208,10 +205,6 @@ onMounted(loadPageData)
 
                 <div class="banner-content-info">
                     <div class="banner-actions-line">
-                        <RouterLink to="/" class="back-button-link">
-                            ← Back to Library
-                        </RouterLink>
-
                         <div class="banner-actions-wrapper">
                             <button @click="refreshMetadata" :disabled="refreshing || searching"
                                 class="arr-action-btn refresh-accent">
@@ -390,22 +383,6 @@ onMounted(loadPageData)
     width: 100%;
     margin-bottom: 1.25rem;
     gap: 1rem;
-}
-
-.back-button-link {
-    text-decoration: none;
-    background-color: #1f2937;
-    border: 1px solid #374151;
-    padding: 0.4rem 0.85rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #f3f4f6;
-    transition: background-color 0.15s;
-}
-
-.back-button-link:hover {
-    background-color: #4b5563;
 }
 
 .banner-actions-wrapper {
